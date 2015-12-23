@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout android:id="@+id/sm_RL"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <TextView
+        android:id="@+id/sm_Title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_toLeftOf="@+id/smRunTimeTV"
+        android:text="Song Title" />
+
+    <TextView
+        android:id="@+id/sm_RunTimeTV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentTop="true"
+        android:text="TextView" />
+    
+    <com.dittybot.app.GLSurf
+        android:id="@+id/sm_GLSurf"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@+id/sm_PlayBtnsLL"
+        android:layout_below="@id/sm_Title" />
+		
+    <LinearLayout
+        android:id="@+id/sm_PlayBtnsLL"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true" >
+
+        <ImageView
+            android:id="@+id/sm_PlayIV"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/playbtn" />
+
+        <ImageView
+            android:id="@+id/sm_RewIV"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/rewbtn" />
+
+        <ImageView
+            android:id="@+id/sm_RecIV"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/recbtn" />
+
+        <ImageView
+            android:id="@+id/sm_AddIV"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/addbtn" />
+
+        <ImageView
+            android:id="@+id/sm_LprIV"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/loopr128" />
+
+        <ImageView
+            android:id="@+id/sm_GearIV"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/setgsbtn" />
+
+        <ImageView
+            android:id="@+id/sm_MenuIV"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_gravity="center_vertical"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/menubtn" />
+
+        <ImageView
+            android:id="@+id/sm_HelpIV"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/helpbtn" />
+
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/sm_ProgSpnr"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_centerVertical="true"
+        android:visibility="gone" />
+
+</RelativeLayout>

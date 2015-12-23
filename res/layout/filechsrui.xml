@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fileChsrRL"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" >
+
+    <ListView
+        android:id="@+id/filechsrLV"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_above="@+id/fchsrBtnLL" android:layout_below="@+id/fchsrTitleTV">
+    </ListView>
+
+
+
+
+
+    <LinearLayout
+        android:id="@+id/fchsrBtnLL"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:gravity="center_horizontal" >
+
+        <ImageButton
+            android:id="@+id/fchsrUpBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/dirup48" android:visibility="gone"/>
+
+        <Button
+            android:id="@+id/fchsrNewBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/btnblk"
+            android:minHeight="50dp"
+            android:text="New Folder"
+            android:textColor="#ffffff"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/fchsrPasteBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/btnblk"
+            android:minHeight="50dp"
+            android:minWidth="80dp"
+            android:text="Paste"
+            android:textColor="#ffffff"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/fchsrCloseBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/btnblk"
+            android:minHeight="50dp"
+            android:minWidth="80dp"
+            android:text="Close"
+            android:textColor="#ffffff"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/fchsrHelpBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/btnblk"
+            android:minHeight="50dp"
+            android:minWidth="80dp"
+            android:text="Help"
+            android:textColor="#ffffff"
+            android:textSize="16sp" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/fchsrTitleTV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:padding="4dp"
+        android:text="TextView"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp" />
+
+</RelativeLayout>

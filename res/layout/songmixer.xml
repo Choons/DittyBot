@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout android:id="@+id/smRL"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <TextView
+        android:id="@+id/smTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_toLeftOf="@+id/smRunTimeTV"
+        android:text="Song Title" />
+
+    <TextView
+        android:id="@+id/smRunTimeTV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentTop="true"
+        android:text="TextView" />
+
+    <com.dittybot.app.ObservableScrollView
+        android:id="@+id/smOSV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/smPlayBtnsLL"
+        android:layout_below="@id/smTitle"
+        android:scrollbars="none" >
+
+        <RelativeLayout
+            android:id="@+id/smOSVRL"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" >
+
+            <RelativeLayout
+                android:id="@+id/smIHdrRL"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_alignParentTop="true"
+                android:orientation="horizontal" >
+
+                <TextView
+                    android:id="@+id/smIHdrTV1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentLeft="true"
+                    android:layout_centerVertical="true"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginLeft="8dp"
+                    android:text="Instrument Tracks"
+                    android:textColor="#cccccc"
+                    android:textSize="16sp" />
+
+                <Button
+                    android:id="@+id/smAddITrkBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentRight="true"
+                    android:layout_centerVertical="true"
+                    android:layout_gravity="center_vertical"
+                    android:background="@drawable/btnblk"
+                    android:gravity="center_vertical"
+                    android:text="Add Track"
+                    android:textColor="#cccccc" />
+
+            </RelativeLayout>
+
+            <LinearLayout
+                android:id="@+id/smITracksLL"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/smIHdrRL"
+                android:orientation="vertical" >
+            </LinearLayout>
+
+            <RelativeLayout
+                android:id="@+id/smDHdrRL"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_below="@id/smITracksLL" >
+
+                <TextView
+                    android:id="@+id/smDHdrTV1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginLeft="8dp"
+                    android:text="Drum Tracks"
+                    android:textColor="#cccccc"
+                    android:textSize="16sp" />
+
+                <Button
+                    android:id="@+id/smAddDTrkBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentRight="true"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/btnblk"
+                    android:text="Add Track"
+                    android:textColor="#cccccc" />
+
+            </RelativeLayout>
+
+            <LinearLayout
+                android:id="@+id/smDTracksLL"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/smDHdrRL"
+                android:orientation="vertical" >
+            </LinearLayout>
+
+            <RelativeLayout
+                android:id="@+id/smAHdrRL"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"                
+                android:layout_below="@id/smDTracksLL"
+                android:orientation="horizontal" >
+
+                <TextView
+                    android:id="@+id/smAHdrTV1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginLeft="8dp"
+                    android:text="Audio Tracks"
+                    android:textColor="#cccccc"
+                    android:textSize="16sp" />
+
+                <Button
+                    android:id="@+id/smAddATrkBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentRight="true"
+                    android:layout_centerVertical="true"
+                    android:layout_gravity="center_vertical"
+                    android:background="@drawable/btnblk"
+                    android:text="Add Track"
+                    android:textColor="#cccccc" />
+
+            </RelativeLayout>
+
+            <LinearLayout
+                android:id="@+id/smATracksLL"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/smAHdrRL"
+                android:orientation="vertical" >
+            </LinearLayout>
+
+            <com.dittybot.app.MaxScrollView
+                android:id="@+id/smMSV"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/smIHdrRL"
+                android:layout_toRightOf="@id/smITracksLL" >
+
+                <RelativeLayout
+                    android:id="@+id/smBodyRL"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" >
+                </RelativeLayout>
+            </com.dittybot.app.MaxScrollView>
+
+            <!--
+			<RelativeLayout
+			    android:id="@+id/songCtrlRL"
+			    android:layout_width="match_parent"
+			    android:layout_height="match_parent"
+			    android:layout_below="@id/smATracksLL"
+			    android:background="#333333" >
+
+			    <LinearLayout
+			        android:id="@+id/sCtrlHdrLL"
+			        android:layout_width="match_parent"
+			        android:layout_height="wrap_content"
+			        android:orientation="horizontal" >
+
+			        <ImageView
+			            android:id="@+id/sCtrlHdrIV"
+			            android:layout_width="wrap_content"
+			            android:layout_height="wrap_content"
+			            android:layout_margin="5dp"
+			            android:src="@drawable/tapereel48" />
+
+			        <TextView
+			            android:id="@+id/sCtrlHdr"
+			            android:layout_width="wrap_content"
+			            android:layout_height="wrap_content"
+			            android:layout_gravity="center_vertical"
+			            android:layout_margin="5dp"
+			            android:gravity="center_vertical"
+			            android:text="Song Info &amp; Settings"
+			            android:textColor="#ffffff"
+			            android:textColorHint="#ffffff"
+			            android:textSize="18sp" />
+			    </LinearLayout>
+
+			    <LinearLayout
+			        android:id="@+id/sCtrlTitleLL"
+			        android:layout_width="wrap_content"
+			        android:layout_height="wrap_content"
+			        android:layout_below="@id/sCtrlHdrLL"
+			        android:orientation="vertical" >
+
+			        <TextView
+			            android:id="@+id/sCtrlTitle"
+			            android:layout_width="wrap_content"
+			            android:layout_height="wrap_content"
+			            android:layout_marginLeft="5dp"
+			            android:layout_marginTop="2dp"
+			            android:text="Title:"
+			            android:textSize="16sp" />
+
+			        <TextView
+			            android:id="@+id/sCtrlInfo"
+			            android:layout_width="wrap_content"
+			            android:layout_height="wrap_content"
+			            android:layout_marginLeft="5dp"
+			            android:layout_marginTop="2dp"
+			            android:text="Info:" />
+
+			        <Button
+			            android:id="@+id/sCtrlEditBtn"
+			            android:layout_width="wrap_content"
+			            android:layout_height="wrap_content"
+			            android:background="@drawable/btnblk"
+			            android:minHeight="50dp"
+			            android:text="Edit Song Details"
+			            android:textColor="#ffffff" />
+
+			    </LinearLayout>
+
+			    <LinearLayout
+			        android:id="@+id/sCtrlTempoLL"
+			        android:layout_width="wrap_content"
+			        android:layout_height="wrap_content"
+			        android:layout_below="@id/sCtrlTitleLL"
+			        android:orientation="vertical" >
+			        
+			        <TextView
+			        android:id="@+id/sCtrlTempo"
+			        android:layout_width="wrap_content"
+			        android:layout_height="wrap_content"			        
+			        android:layout_marginLeft="5dp"
+			        android:layout_marginTop="2dp"
+			        android:text="Tempo:"
+			        android:textSize="16sp" />
+			        
+			        <TextView
+			        android:id="@+id/sCtrlLen"
+			        android:layout_width="wrap_content"
+			        android:layout_height="wrap_content"
+			        android:layout_marginLeft="5dp"
+			        android:layout_marginTop="2dp"
+			        android:text="Length:"
+			        android:textSize="16sp" />
+
+			        <Button
+			            android:id="@+id/sCtrlTempoBtn"
+			            android:layout_width="wrap_content"
+			            android:layout_height="wrap_content"
+			            android:background="@drawable/btnblk"
+			            android:minHeight="50dp"
+			            android:text="Change Tempo"
+			            android:textColor="#ffffff" />
+
+			    </LinearLayout>			    
+
+			    <LinearLayout
+			        android:id="@+id/sCtrlTracksLL"
+			        android:layout_width="wrap_content"
+			        android:layout_height="wrap_content"
+			        android:layout_below="@id/sCtrlTempoLL"
+			        android:orientation="vertical" >
+			        
+			        <TextView
+			        android:id="@+id/sCtrlTracks"
+			        android:layout_width="wrap_content"
+			        android:layout_height="wrap_content"			        
+			        android:layout_marginLeft="5dp"
+			        android:layout_marginTop="2dp"
+			        android:text="Tracks:"
+			        android:textSize="16sp" />
+
+				    <Button
+			        android:id="@+id/sCtrlAddTrkBtn"
+			        android:layout_width="wrap_content"
+			        android:layout_height="wrap_content"			        
+			        android:background="@drawable/btnblue"
+			        android:minHeight="50dp"
+			        android:minWidth="80dp"
+			        android:text="Add Track"
+			        android:textColor="#ffffff" />
+
+				    <Button
+				        android:id="@+id/sCtrlUnmuteBtn"
+				        android:layout_width="wrap_content"
+				        android:layout_height="wrap_content"
+				        android:minHeight="50dp"
+				        android:text="Unmute All Tracks" />
+
+			    </LinearLayout>			    
+
+			</RelativeLayout>
+
+
+            -->
+
+        </RelativeLayout>
+    </com.dittybot.app.ObservableScrollView>
+
+    <LinearLayout
+        android:id="@+id/smPlayBtnsLL"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true" >
+
+        <ImageView
+            android:id="@+id/smPlayIV"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/playbtnr" />
+
+        <ImageView
+            android:id="@+id/smRewIV"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="60dp"
+            android:minWidth="60dp"
+            android:src="@drawable/rewfullbtnr" />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:id="@+id/smBtnsSV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_toRightOf="@id/smPlayBtnsLL" >
+
+        <LinearLayout
+            android:id="@+id/smBtnsLL"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal" >
+
+            <Button
+                android:id="@+id/smSongsBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="1dp"
+                android:layout_marginLeft="1dp"
+                android:layout_marginRight="1dp"
+                android:layout_marginTop="1dp"
+                android:background="@drawable/btnblk"
+                android:minHeight="50dp"
+                android:minWidth="80dp"
+                android:text="Song Menu"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/smInstmtBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="1dp"
+                android:layout_marginLeft="1dp"
+                android:layout_marginRight="1dp"
+                android:layout_marginTop="1dp"
+                android:background="@drawable/btnblk"
+                android:minHeight="50dp"
+                android:minWidth="80dp"
+                android:text="Instruments"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/smDrumsBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="1dp"
+                android:background="@drawable/btnblk"
+                android:minHeight="50dp"
+                android:minWidth="80dp"
+                android:text="Drums"
+                android:textColor="#ffffff"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/smDittyBotBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="1dp"
+                android:layout_marginLeft="1dp"
+                android:layout_marginRight="1dp"
+                android:layout_marginTop="1dp"
+                android:background="@drawable/btnblk"
+                android:minHeight="50dp"
+                android:minWidth="80dp"
+                android:text="DittyBot"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/smNetworkBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="1dp"
+                android:background="@drawable/btnblk"
+                android:minHeight="50dp"
+                android:minWidth="80dp"
+                android:text="Network"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/smHelpBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="1dp"
+                android:layout_marginLeft="1dp"
+                android:layout_marginRight="1dp"
+                android:layout_marginTop="1dp"
+                android:background="@drawable/btnblk"
+                android:minHeight="50dp"
+                android:minWidth="80dp"
+                android:text="Help"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/smMidiBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="1dp"
+                android:background="@drawable/btnblk"
+                android:minHeight="50dp"
+                android:minWidth="80dp"
+                android:text="MIDI"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <ProgressBar
+        android:id="@+id/smProgSpnr"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_centerVertical="true"
+        android:visibility="gone" />
+
+</RelativeLayout>

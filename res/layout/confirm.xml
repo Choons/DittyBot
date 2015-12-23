@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_gravity="center" >
+
+    <ImageView
+        android:id="@+id/confmIV"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_margin="5dp" />
+
+    <TextView
+        android:id="@+id/confmTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:layout_margin="5dp"
+        android:layout_toRightOf="@id/confmIV"
+        android:gravity="center"
+        android:padding="5dp"
+        android:text="TextView"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/confmTV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/confmIV"
+        android:layout_centerHorizontal="true"
+        android:layout_margin="8dp"
+        android:gravity="center"
+        android:text="TextView" />
+
+    <LinearLayout
+        android:id="@+id/confmLL"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/confmTV"
+        android:layout_centerHorizontal="true" >
+
+        <Button
+            android:id="@+id/confmYesBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:background="@drawable/btnblk"
+            android:minHeight="50dp"
+            android:minWidth="80dp"
+            android:text="Yes"
+            android:textColor="#ffffff" />
+
+        <Button
+            android:id="@+id/confmNoBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:background="@drawable/btnblk"
+            android:minHeight="50dp"
+            android:minWidth="80dp"
+            android:text="No"
+            android:textColor="#ffffff" />
+
+    </LinearLayout>
+
+</RelativeLayout>

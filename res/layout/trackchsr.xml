@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" >
+
+    <TextView
+        android:id="@+id/tkcTitleTV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="3dp"
+        android:text="TextView"
+        android:textColor="#ffffff"
+        android:textSize="16sp" />
+
+    <com.dittybot.app.ObservableScrollView
+        android:id="@+id/tkcOSV"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/tkcBtn1"
+        android:layout_below="@+id/tkcTitleTV" >
+
+        <LinearLayout
+            android:id="@+id/tkcLL"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical" >
+
+        </LinearLayout>
+    </com.dittybot.app.ObservableScrollView>
+
+    <Button
+        android:id="@+id/tkcBtn1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:background="@drawable/btnblk"
+        android:minHeight="40dp"
+        android:minWidth="70dp"
+        android:text="Button"
+        android:textColor="#ffffff"
+        android:textSize="16sp" />
+
+    <ProgressBar
+        android:id="@+id/tkcProgSpnr"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true" />
+
+</RelativeLayout>
