@@ -1,5 +1,10 @@
 package com.dittybot.app;
 
+/**
+ * this is the class that handles drawing all the OpenGL 
+ * graphics for SongMixer
+ */
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.Buffer;
@@ -100,7 +105,7 @@ public class MixerGL implements Renderer {
 		tCtrls.add(tCtrl); 
 	}
 	
-	public void init_rndRect() {
+	public void init_rndRect() {  
 		System.out.println("init_rndRect()");
 		float[] color = {0.1f, 0.4f, 0.4f, 1.0f};
 		
