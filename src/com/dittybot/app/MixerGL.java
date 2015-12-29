@@ -1,8 +1,8 @@
 package com.dittybot.app;
 
 /**
- * this is the class that handles drawing all the OpenGL 
- * graphics for SongMixer
+ * this class handles drawing all the OpenGL 
+ * graphics for objects created in SongMixer
  */
 
 import java.lang.reflect.Field;
@@ -35,7 +35,7 @@ public class MixerGL implements Renderer {
 	Context context;
 	private GlobalVars gv;	
 	float density; //screen density
-	float screenWidth;
+	//float screenWidth;
 	
 	private float[] cntrlsMtx = new float[16]; //track controls model matrix. xyz @ indices 12, 13, 14
 	private float[] bodyMtx = new float[16]; //mixer body that contains all the tblocks
@@ -76,7 +76,7 @@ public class MixerGL implements Renderer {
 		density = context.getResources().getDisplayMetrics().density;				
 		
         gv = ((GlobalVars)context.getApplicationContext());
-        screenWidth = gv.screenWidth;        
+        //screenWidth = gv.screenWidth;        
         
 	}
 	
