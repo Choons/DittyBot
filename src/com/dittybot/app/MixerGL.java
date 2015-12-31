@@ -48,7 +48,7 @@ public class MixerGL implements Renderer {
 	
 	private List<TrackControl> tCtrls = new ArrayList<TrackControl>(); //list to loop over to draw tracks
 	
-	private int colorShaderID; //OpenGL uses to look up the color shader settings	
+	private int colorShaderID; //OpenGL reference to compiled shader	
 	private int textureShaderID; //
 	private int circleShaderID;
 	private int rrShaderID; //round rectangle shader
