@@ -12,10 +12,10 @@
 
         <ImageView
             android:id="@+id/midiIV"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_gravity="center_vertical"
-            android:src="@drawable/midi48" />
+            android:src="@drawable/midi256" />
 
         <TextView
             android:id="@+id/midiTitle"
@@ -85,7 +85,7 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/midiTV5"
         android:layout_centerHorizontal="true"
-        android:layout_margin="20dp"
+        android:layout_margin="8dp"
         android:background="@drawable/btnblk"
         android:gravity="center_vertical|center_horizontal"
         android:minHeight="50dp"

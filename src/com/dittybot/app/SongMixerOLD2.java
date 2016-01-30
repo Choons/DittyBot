@@ -501,7 +501,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
     	dialog.setContentView(R.layout.radiobtns);
     	
     	ImageView iv = (ImageView) dialog.findViewById(R.id.radioBtnsIV);
-		iv.setImageResource(R.drawable.scofile48);
+		//iv.setImageResource(R.drawable.scofile48);
 		
 		TextView tv = (TextView) dialog.findViewById(R.id.radioBtnsTV);
 		tv.setText("Choose a Song Option:  ");
@@ -687,15 +687,15 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 					System.out.println("track.volume " + volume);
 					
 					//1 byte master pan					
-					int pan = in.read();
-					System.out.println("track.pan " + pan);					
+					//int pan = in.read();
+					//System.out.println("track.pan " + pan);					
 					
 					//now parse by track type
 					if (type == 0) { 		//instrument track
 						Track track = new Track(SongMixerOLD2.this); 
 						track.info = trackinfo;
 						track.volume = volume;
-						track.pan = pan;
+						//track.pan = pan;
 						
 						//assign a unique runtime ID # to track for UI purposes						
 						int id = 0;	
@@ -758,7 +758,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 						AudioTrack audio_track = new AudioTrack(SongMixerOLD2.this);						
 						audio_track.info = trackinfo;
 						audio_track.volume = volume;
-						audio_track.pan = pan;
+						//audio_track.pan = pan;
 						
 						song.audio_tracks.add(audio_track);
 					}
@@ -768,7 +768,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 						DrumTrack drum_track = new DrumTrack(SongMixerOLD2.this);						
 						drum_track.info = trackinfo;
 						drum_track.volume = volume;
-						drum_track.pan = pan;
+						//drum_track.pan = pan;
 						
 						int numDrums = in.read(); //subtracks, 1 for each perc instmt in drum track
 						System.out.println("numDrumTks " + numDrums);
@@ -1394,12 +1394,12 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 				RandomAccessFile out = new RandomAccessFile(song_file, "rw");
 				
 				//----------- Song Info -----------------------------------------------
-				//4 bytes DBSF file ID seq 
+				//4 bytes DBSF file magic seq 
 				out.write(dbsf); 
 				
 				//1 byte song.name length field					 
 				byte nb = (byte) song.name.length(); //TODO make sure elsewhere user can't use more than 256 chars
-				out.write(nb); 	//out.writeByte(nl); I think this would work too.. writes low 8 bits of int				
+				out.write(nb);			
 				//convert each character in name string to its ASCII value & then write a byte for it					
 				out.write(song.name.getBytes("US-ASCII"));					
 				
@@ -1429,13 +1429,17 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 					//convert each character in track info string to its ASCII value & then write a byte for it				
 					out.write(song.tracks.get(i).info.getBytes("US-ASCII"));
 					
-					//1 byte volume
+					//1 byte track master volume
 					byte vb = (byte) song.tracks.get(i).volume;
 					out.write(vb);
 					
+					
 					//1 byte pan
+					/*
+					 * 1/6/2015 removed pan field at track level & made it a per note field
 					byte pb = (byte) song.tracks.get(i).pan;
 					out.write(pb);
+					*/
 					
 					//-------- Notes Data -----------
 					
@@ -1644,7 +1648,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
     	
     	//TODO image to left of dialog title. If can find an icon that works for track use instead
     	ImageView iv = (ImageView) dialog.findViewById(R.id.radioBtnsIV);
-		iv.setImageResource(R.drawable.scofile48);
+		//iv.setImageResource(R.drawable.scofile48);
     	
 		TextView tv = (TextView) dialog.findViewById(R.id.radioBtnsTV);
 		tv.setText("Add a Track to this song:  ");
@@ -1700,7 +1704,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
     	
     	//TODO image to left of dialog title. If can find an icon that works for track use instead
     	ImageView iv = (ImageView) dialog.findViewById(R.id.radioBtnsIV);
-		iv.setImageResource(R.drawable.scofile48);
+		//iv.setImageResource(R.drawable.scofile48);
     	
 		TextView tv = (TextView) dialog.findViewById(R.id.radioBtnsTV);
 		tv.setText("Choose a track type:  ");
@@ -1785,7 +1789,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
     	
     	ListView lv = (ListView) dialog.findViewById(R.id.filechsrLV);
     	List<String> fileList = new ArrayList<String>();    	
-    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.fnameTV, fileList, dirPath));
+    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.pic_textTV, fileList, dirPath));
     	
     	lv.setOnItemClickListener(new OnItemClickListener() {	
 			@Override
@@ -2346,7 +2350,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 		
 		if (type == 0) { //instmt track
 			trackRL.setBackgroundColor(0xFFFF0000);
-			trackIV.setImageResource(R.drawable.scofile48);
+			//trackIV.setImageResource(R.drawable.scofile48);
 			trackTV.setText("Instrument Tracks");
 		}
 		if (type == 1) { //audio track
@@ -2443,6 +2447,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 			song.name = songName;
 			song.info = "This song file was translated from the MIDI file: " + midiFname;			
 			
+			//create a Midi class object 
 			String midiFpath = gv.extStorPath + "/DittyBot/Midi/" + midiFname; 			
 			midi = new Midi(SongMixerOLD2.this, midiFpath);
 			
@@ -2455,9 +2460,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 			}
 			else {
 				System.out.println(midi.error_message); 
-			}
-			
-			System.out.println("midi.num_tracks " + midi.num_tracks);
+			}			
 			
 			//loop loading and processing each midi track's data
 			
@@ -2820,7 +2823,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
     	//lv.setBackgroundColor(gv.scrollColor);
     	// FileAdapter is a custom adapter class below
     	List<String> fileList = new ArrayList<String>(); //wonky to pass here instead of making the list in the adapter but roll with it for super class constructor   	
-    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.fnameTV, fileList, dirPath));
+    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.pic_textTV, fileList, dirPath));
     	
     	lv.setOnItemClickListener(new OnItemClickListener() {	
 			@Override
@@ -2924,10 +2927,10 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 		@Override
 		public View getView(int position, View convertView, ViewGroup parent) {			
 			LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-			View row = inflater.inflate(R.layout.file_item, parent, false);
+			View row = inflater.inflate(R.layout.pic_text_item, parent, false);
 			
-			ImageView iv = (ImageView) row.findViewById(R.id.ficonIV);
-			TextView tv = (TextView) row.findViewById(R.id.fnameTV);				
+			ImageView iv = (ImageView) row.findViewById(R.id.pic_textIV);
+			TextView tv = (TextView) row.findViewById(R.id.pic_textTV);				
 			
 			tv.setText(fnames[position]);			
 						
@@ -2939,13 +2942,13 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
     			if (whatsit.isFile()) {    				    				
     				String[] temp = fnames[position].split("\\.");    				 
     				if (temp[temp.length-1].contentEquals("dbs")) { 
-    					iv.setImageResource(R.drawable.scofile48);
+    					//iv.setImageResource(R.drawable.scofile48);
     				}
     				else if (temp[temp.length-1].contentEquals("wav")) {
-    					iv.setImageResource(R.drawable.tapefile4_48);
+    					//iv.setImageResource(R.drawable.tapefile4_48);
     				}
     				else if (temp[temp.length-1].contentEquals("mid")) {    					
-    					iv.setImageResource(R.drawable.midi48);
+    					//iv.setImageResource(R.drawable.midi48);
     				}
     				else {
     					System.out.println("unrecognized file type"); // TODO handle with maybe a question mark img

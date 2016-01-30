@@ -3,21 +3,25 @@ package com.dittybot.app;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.ListIterator;
+import java.util.Locale;
 
 import org.puredata.core.PdBase;
 import org.puredata.core.PdListener;
 
-import com.dittybot.app.SongMixerOLD2.FileAdapter;
 import com.dittybot.app.SongMixerOLD2.PromptRunnable;
-import com.dittybot.app.SongMixerOLD2.songDraw;
+import com.dittybot.app.SongMixerOLD2.getMidiAsync;
 import com.dittybot.app.SongMixerOLD2.songLoad;
-import com.dittybot.app.SongMixerOLD2.songSort;
+import com.dittybot.app.SongMixerOLD2.songSave;
 
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
+import android.content.Intent;
 
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -32,9 +36,11 @@ import android.view.View.OnTouchListener;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.LinearLayout.LayoutParams;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
@@ -56,6 +62,8 @@ public class SongMixer extends Activity {
 
 	private List<Imod> imods = new ArrayList<Imod>(); //data about loaded imod.pd's
 	int lastImodID = -1; //ID of the imod patch that ends latest/last
+	
+	private Midi midi = null;
 	
 	private float zoom_factor = 5; //zoom in & out on note data
 	
@@ -254,7 +262,7 @@ public class SongMixer extends Activity {
     	dialog.setContentView(R.layout.radiobtns);
     	
     	ImageView iv = (ImageView) dialog.findViewById(R.id.radioBtnsIV);
-		iv.setImageResource(R.drawable.scofile48);
+		iv.setImageResource(R.drawable.scofile256);
 		
 		TextView tv = (TextView) dialog.findViewById(R.id.radioBtnsTV);
 		tv.setText("Choose a Song Option:  ");
@@ -279,13 +287,13 @@ public class SongMixer extends Activity {
 			public void onClick(View v) {							
 				switch (rg.getCheckedRadioButtonId()) {
 				
-		    	case R.id.radioBtnsRB1:		    		
+		    	case R.id.radioBtnsRB1:	//Load a saved Song	    		
 		    		dialog.dismiss();
 		    		songChooser();
 		    		break;
-		    	case R.id.radioBtnsRB2:		    		
+		    	case R.id.radioBtnsRB2:	//Create a new Song	    		
 		    		dialog.dismiss();
-		    		//songNew();		    		
+		    		songNew();		    		
 		    	}						
 			}    		
     	});  
@@ -300,19 +308,12 @@ public class SongMixer extends Activity {
 		dialog.show();
 	}
 	
-	private void songChooser() {
-		System.out.println("songChooser()");
+	private void songChooser() {	
 		
-		fileChooser("Songs", new PromptRunnable() { //Songs is directory name
-			
-			public void run() {
-				//get the returned file name
-				String filename = this.getValue();
-				System.out.println(filename);				
-				new songLoad().execute(filename); //AsyncTask
-				
-			}
-			
+		fileChooser("Songs", new PromptRunnable() { //"Songs" is directory name			
+			public void run() {													
+				new songLoad().execute(this.getValue()); //getValue() returns the song file name of the song the user chose		
+			}			
 		});
 	}
 	
@@ -421,10 +422,10 @@ public class SongMixer extends Activity {
 					System.out.println("track.volume " + volume);
 					
 					//1 byte master pan					
-					int pan = in.read();
-					System.out.println("track.pan " + pan);					
+					//int pan = in.read();
+					//System.out.println("track.pan " + pan);					
 					
-					//now parse by track type
+					//now parse by track type -----------------------------
 					
 					if (type == 0) { 		//instrument track						
 						
@@ -432,7 +433,7 @@ public class SongMixer extends Activity {
 						
 						track.info = trackinfo;
 						track.volume = volume;
-						track.pan = pan;
+						//track.pan = pan;
 						
 						//assign a unique runtime ID # to track for UI purposes						
 						int id = 0;	
@@ -508,7 +509,7 @@ public class SongMixer extends Activity {
 						DrumTrack drum_track = new DrumTrack(SongMixer.this);						
 						drum_track.info = trackinfo;
 						drum_track.volume = volume;
-						drum_track.pan = pan;
+						//drum_track.pan = pan;
 						
 						int numDrums = in.read(); //subtracks, 1 for each perc instmt in drum track
 						System.out.println("numDrumTks " + numDrums);
@@ -601,6 +602,82 @@ public class SongMixer extends Activity {
 		       */
 		      
 		}
+	}
+	
+	private void songNew() {
+		System.out.println("songNew()");	
+		
+		String songsDir = gv.extStorPath + "/DittyBot/Songs/"; //top level dir for all songs
+		
+		song = null;
+		song = new Song(); //re-initialize the song object
+		
+		//auto-generate a default date-based + numbered file name. user can accept or enter own name 		
+		Date date = new Date();    	
+    	SimpleDateFormat sdf = new SimpleDateFormat("MMddyy", Locale.ENGLISH);    	
+    	String datestr = sdf.format(date);    	
+    	
+    	dfltSongNum++; //number to append to default clip name. TODO need to add a check for if day changed
+    	
+    	String dfltFileName = "Song" + datestr + "_" + dfltSongNum;
+    	
+    	//check that the default file name isn't already a file
+    	String checkPath = songsDir + dfltFileName; 
+    	System.out.println(checkPath);
+    	File checkFile = new File(checkPath);
+    	if (checkFile.exists()) {    		
+    		songNew(); //loop recursively until hit a unique name
+    	}
+    	else { //default file name is not already in use so present to user
+           	final Dialog dialog = new Dialog(this);  
+        	dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+    		dialog.setContentView(R.layout.filenamerui);    		
+    		
+    		TextView title = (TextView) dialog.findViewById(R.id.filenmrTitleTV);
+    		title.setText("Save New Song As:");
+    		
+    		TextView changePrompt = (TextView) dialog.findViewById(R.id.filenmrTV);
+    		changePrompt.setText("Click to change file name:");
+    		
+    		final EditText nameBox = (EditText) dialog.findViewById(R.id.fileNameET);		
+    		nameBox.setHint(dfltFileName); //keeps user from having to delete every letter upon changing
+    				
+    		Button okBtn = (Button) dialog.findViewById(R.id.fnmrSaveBtn);
+    		Button cancelBtn = (Button) dialog.findViewById(R.id.fnmrCancelBtn);
+    		
+    		okBtn.setOnClickListener(new OnClickListener() {
+    			@Override
+    			public void onClick(View v) {
+    				dialog.dismiss();
+    				String dirName;
+    				if (nameBox.getText().toString().contentEquals("")) { //true when user accepts default name					
+    					dirName = nameBox.getHint().toString();
+    				}
+    				else {
+    					dirName = nameBox.getText().toString();
+    				}
+    				
+    				song.fileName = dirName;
+    				
+    				System.out.println("song.fileName: " + song.fileName);
+    				
+    				/**
+    				 * 1/14/2016
+    				 * OK this is just the stub that gets a name from user
+    				 * Need to set up the rest of the song and save the song file
+    				 */
+    			}						
+    		});
+    		
+    		cancelBtn.setOnClickListener(new OnClickListener() {
+    			@Override
+    			public void onClick(View v) {
+    				dialog.dismiss();
+    			}						
+    		});		
+    		
+    		dialog.show(); 
+    	}
 	}
 	
 	private int songLength() { //calculate total song length in ms
@@ -700,7 +777,7 @@ public class SongMixer extends Activity {
 							int loNote = gv.instruments.get(index).samples[k].loNote;
 							int hiNote = gv.instruments.get(index).samples[k].hiNote;														
 															
-							if (note >= loNote && note <= hiNote) { //then have right sample for note								
+							if (note >= loNote && note <= hiNote) { //then right sample for note								
 								sampleFound = true;
 								noteData.arNum = gv.instruments.get(index).samples[k].patchID;	//"ar" is appended in imod						
 								noteData.numSamples = gv.instruments.get(index).samples[k].numSamples;
@@ -967,13 +1044,281 @@ public class SongMixer extends Activity {
         done = true;        
         return done;
     }
+    
+	public class songSave extends AsyncTask <String, Integer, String> {		
+		
+		@Override
+		protected void onPreExecute() {
+			super.onPreExecute();	
+			System.out.println("***** songSave *******");
+		}
+		
+		@Override
+		protected String doInBackground(String... params) {
+			
+			byte[] dbsf = new byte[4]; //DBSF magic seq as 1 byte ASCII chars to ID file as a DittyBot song file
+			dbsf[0] = 68; //D
+			dbsf[1] = 66; //B
+			dbsf[2] = 83; //S
+			dbsf[3] = 70; //F
+			
+			byte[] dbtk = new byte[4]; //DBTK magic seq ID at beginning of DittyBot tracks
+			dbtk[0] = 68; //D
+			dbtk[1] = 66; //B
+			dbtk[2] = 84; //T
+			dbtk[3] = 75; //K		
+			
+			String filePath = gv.extStorPath + "/DittyBot/Songs/" + song.fileName;
+			
+			File song_file = new File(filePath); //TODO maybe verify file exists etc.
+			System.out.println("filePath " + filePath);
+			
+			try {
+				RandomAccessFile out = new RandomAccessFile(song_file, "rw");
+				
+				//----------- Song Info -----------------------------------------------
+				//4 bytes DBSF file magic seq 
+				out.write(dbsf); 
+				
+				//1 byte song.name length field					 
+				byte nb = (byte) song.name.length(); //TODO make sure elsewhere user can't use more than 256 chars
+				out.write(nb);			
+				//convert each character in name string to its ASCII value & then write a byte for it					
+				out.write(song.name.getBytes("US-ASCII"));					
+				
+				//1 byte song.info length field					
+				byte ib = (byte) song.info.length();
+				out.write(ib);				
+				//convert each character in song info string to its ASCII value & then write a byte for it				
+				out.write(song.info.getBytes("US-ASCII"));
+				
+				//8 bytes write tempo
+				out.writeDouble(song.tempo);
+				
+				
+				//------------- Track Data -----------------------------------------------
+				
+				for (int i=0; i < song.tracks.size(); i++) { //instrument tracks
+					//4 bytes DBTK magic seq marks begin of each track
+					out.write(dbtk);
+					
+					//1 byte write track type
+					byte typeb = 0;
+					out.write(typeb);
+					
+					//1 byte for track.info length field
+					byte tib = (byte) song.tracks.get(i).info.length();
+					out.write(tib);
+					//convert each character in track info string to its ASCII value & then write a byte for it				
+					out.write(song.tracks.get(i).info.getBytes("US-ASCII"));
+					
+					//1 byte track master volume
+					byte vb = (byte) song.tracks.get(i).volume;
+					out.write(vb);
+					
+					
+					//1 byte pan
+					/*
+					 * 1/6/2015 removed pan field at track level & made it a per note field
+					byte pb = (byte) song.tracks.get(i).pan;
+					out.write(pb);
+					*/
+					
+					//-------- Notes Data -----------
+					
+					//1 byte for instrument number code
+					byte inum = (byte) song.tracks.get(i).instrument.instmtNum;
+					out.write(inum);						
+					
+					//4 bytes int for # bytes of note data that track contains
+					long numBytesPtr = out.getFilePointer();
+					int numBytes = 0; //keep count of bytes written
+					out.writeInt(numBytes); //a placeholder initially. come back & write total numBytes written 
+					
+					ListIterator<Integer> pointer = song.tracks.get(i).notes.listIterator();
+					
+					//write all note data-- start, note, duration, volume, # dynamic bytes, dynamic info (if any)												
+					while (pointer.hasNext()) {
+						out.writeInt(pointer.next()); numBytes += 4; //start ms 4 bytes
+						out.write(pointer.next()); numBytes++; //note 1 byte (RandomAccessFile writes 8 least sig bits this way)
+						out.writeShort(pointer.next()); numBytes += 2; //duration 2 bytes (RandomAccessFile writes 2 least sig bytes of int)
+						out.write(pointer.next()); numBytes++; //volume 1 byte
+						
+						int nDynBytes = pointer.next();	//# bytes of following dynamic info/instructions (up to 256 bytes) 1 byte						
+						out.write(nDynBytes); numBytes++;  
+						if (nDynBytes > 0) { //if any, write the ASCII byte values of the dynamics info
+							System.out.println("songSave() nDynBytes > 0");
+							for (int n=0; n < nDynBytes; n++) {
+								out.write(pointer.next()); //1 byte for each ASCII character used in dynamics info
+								numBytes++;
+							}
+						}
+					}
+					
+					long currPtr = out.getFilePointer(); 
+					out.seek(numBytesPtr); //jump back to # bytes data field
+					out.writeInt(numBytes);   //and write how many bytes were written to file
+					out.seek(currPtr); //return to latest pointer position
+					System.out.println("numBytes " + numBytes + " numBytesPtr " + numBytesPtr + " currPtr " + currPtr);					
+				}
+				
+				for (int i=0; i < song.audio_tracks.size(); i++) {  //audio tracks
+					
+					/* THIS ALL NEEDS TO BE WORKED OUT
+					
+					//4 bytes DBTK magic seq marks begin of each track
+					out.write(dbtk);
+					
+					//1 byte write track type
+					byte typeb = 1;
+					out.write(typeb);
+					
+					//1 byte for track.info length field
+					byte tib = (byte) song.audio_tracks.get(i).info.length();
+					out.write(tib);
+					//convert each character in track info string to its ASCII value & then write a byte for it				
+					out.write(song.audio_tracks.get(i).info.getBytes("US-ASCII"));
+					
+					//1 byte volume
+					byte vb = (byte) song.audio_tracks.get(i).volume;
+					out.write(vb);
+					
+					//1 byte pan
+					byte pb = (byte) song.audio_tracks.get(i).pan;
+					out.write(pb);	
+					
+					//-------- Notes Data -----------
+					
+					//4 bytes int for # bytes of audio data that track contains	
+					long numBytesPtr = out.getFilePointer();
+					int numBytes = 0; //keep count of bytes written
+					out.writeInt(0); //a placeholder initially. come back & write total numBytes written 
+					
+					ListIterator<Object> audptr = song.audio_tracks.get(i).listIterator();						
+					while (audptr.hasNext()) {
+						//start time ms 4 bytes
+						int start = (Integer) audptr.next();
+						out.writeInt(start);
+						numBytes += 4;
+						 
+						String fileName = (String) audptr.next();
+						//# file name bytes to read - 1 byte
+						int fnamelen = fileName.length();
+						out.write(fnamelen);
+						numBytes++;
+						//audio file name characters (up to 256 bytes)
+						for (int j=0; j < fnamelen; j++) {
+							char c = fileName.charAt(j);
+							out.write(c);
+							numBytes++;
+						}							
+						
+						//duration ms 2 bytes
+						int duration = (Integer) audptr.next();
+						out.writeShort(duration);
+						numBytes += 2;
+						
+						//volume - 1 byte
+						int volume = (Integer) audptr.next();
+						out.write(volume);
+						numBytes++;							
+						
+						//# dynamic bytes - 1 byte						
+						int nDynBytes = (Integer) audptr.next();	//# bytes of following dynamic info/instructions (up to 256 bytes) 1 byte						
+						out.write(nDynBytes);
+						numBytes++;
+						//dynamic info/instructions
+						if (nDynBytes > 0) { //if any, write the ASCII byte values of the dynamics info
+							for (int n=0; n < nDynBytes; n++) {
+								int asciival = (Integer) audptr.next();
+								out.write(asciival); //1 byte for each ASCII character used in dynamics info
+								numBytes++;
+							}
+						}													
+					}
+					
+					long currPtr = out.getFilePointer(); 
+					out.seek(numBytesPtr); //jump back to # bytes data field
+					out.writeInt(numBytes);   //and write how many bytes were written to file
+					out.seek(currPtr); //return to latest pointer position
+					System.out.println("numBytes " + numBytes + " numBytesPtr " + numBytesPtr + " currPtr " + currPtr);	
+					
+					*/
+				}
+				
+				for (int i=0; i < song.drum_tracks.size(); i++) {  //drum tracks
+					//4 bytes DBTK magic seq marks begin of each track
+					out.write(dbtk);
+					
+					//1 byte write track type
+					byte typeb = 2;
+					out.write(typeb);
+					
+					//1 byte for track.info length field
+					byte tib = (byte) song.drum_tracks.get(i).info.length();
+					out.write(tib);
+					//convert each character in track info string to its ASCII value & then write a byte for it				
+					out.write(song.drum_tracks.get(i).info.getBytes("US-ASCII"));
+					
+					//1 byte volume
+					byte vb = (byte) song.drum_tracks.get(i).volume;
+					out.write(vb);
+					
+					//1 byte pan
+					byte pb = (byte) song.drum_tracks.get(i).pan;
+					out.write(pb);
+					
+					//-------- Notes Data -----------
+					
+					System.out.println("songSave() writing type=2 track");					
+					int numdtks = song.drum_tracks.get(i).drums.size();
+					System.out.println("numdtks " + numdtks);
+					//1 byte - write # drum subtracks in the percussion track
+					out.write(numdtks);
+					
+					for (int q=0; q < numdtks; q++) { //loop over each drum subtrack
+						
+						//1 byte drum number code
+						System.out.println("drumNum= " + song.drum_tracks.get(i).drums.get(q).drumNum);
+						out.write(song.drum_tracks.get(i).drums.get(q).drumNum);
+						
+						//int (4 bytes) for how many bytes of note data follows - 6 bytes per note/hit- 4 bytes for startTime, 1 byte volume, 1 byte pan
+						int dbytes = 6 * (song.drum_tracks.get(i).drums.get(q).score.size() / 3); //stride 3 for each "hit", 4+1+1 bytes
+						out.writeInt(dbytes);
+						
+						ListIterator<Integer> pointer = song.drum_tracks.get(i).drums.get(q).score.listIterator();							
+						while (pointer.hasNext()) {								
+							//start time in milliseconds (int 4 bytes) 
+							out.writeInt(pointer.next());
+							//volume - 1 byte
+							out.write(pointer.next());
+							//pan - 1 byte
+							out.write(pointer.next());
+						}
+					}				
+				}				
+				
+				out.close(); //close file stream
+			}
+			catch (IOException e) {			
+				e.printStackTrace();			
+			}
+			
+			return null;
+		}
+		
+		@Override
+		   protected void onPostExecute(String result) {
+		      super.onPostExecute(result);		      
+		      
+		}		
+	}	
 //==============================================================================================================	
 	private void fileChooser(final String dirName, final PromptRunnable postrun) {
 		
 		final String dirPath = gv.extStorPath + "/DittyBot/" + dirName; //TODO restricts to DittyBot dir. may want to make more general			
 		
-    	//final Dialog dialog = new Dialog(this);  
-    	final Dialog dialog = new Dialog(this, 666);
+    	final Dialog dialog = new Dialog(this);    	
     	dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);  
     	//dialog.getWindow().setBackgroundDrawable(new ColorDrawable(0x33FFFFFF));
     	dialog.setContentView(R.layout.filechsrui); //adapt existing layout for this
@@ -998,7 +1343,7 @@ public class SongMixer extends Activity {
     	//lv.setBackgroundColor(gv.scrollColor);
     	// FileAdapter is a custom adapter class below
     	List<String> fileList = new ArrayList<String>(); //wonky to pass here instead of making the list in the adapter but roll with it for super class constructor   	
-    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.fnameTV, fileList, dirPath));
+    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.pic_textTV, fileList, dirPath));
     	
     	lv.setOnItemClickListener(new OnItemClickListener() {	
 			@Override
@@ -1066,10 +1411,10 @@ public class SongMixer extends Activity {
 		@Override
 		public View getView(int position, View convertView, ViewGroup parent) {			
 			LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-			View row = inflater.inflate(R.layout.file_item, parent, false);
+			View row = inflater.inflate(R.layout.pic_text_item, parent, false);
 			
-			ImageView iv = (ImageView) row.findViewById(R.id.ficonIV);
-			TextView tv = (TextView) row.findViewById(R.id.fnameTV);				
+			ImageView iv = (ImageView) row.findViewById(R.id.pic_textIV);
+			TextView tv = (TextView) row.findViewById(R.id.pic_textTV);				
 			
 			tv.setText(fnames[position]);			
 						
@@ -1081,13 +1426,13 @@ public class SongMixer extends Activity {
     			if (whatsit.isFile()) {    				    				
     				String[] temp = fnames[position].split("\\.");    				 
     				if (temp[temp.length-1].contentEquals("dbs")) { 
-    					iv.setImageResource(R.drawable.scofile48);
+    					iv.setImageResource(R.drawable.scofile256);
     				}
     				else if (temp[temp.length-1].contentEquals("wav")) {
-    					iv.setImageResource(R.drawable.tapefile4_48);
+    					iv.setImageResource(R.drawable.tapefile256);
     				}
     				else if (temp[temp.length-1].contentEquals("mid")) {    					
-    					iv.setImageResource(R.drawable.midi48);
+    					iv.setImageResource(R.drawable.midi256);
     				}
     				else {
     					System.out.println("unrecognized file type"); // TODO handle with maybe a question mark img
@@ -1171,7 +1516,104 @@ public class SongMixer extends Activity {
 		
 	}
 	
-	private void menu() {
+	private void menu() { //fired when user clicks the menu icon button
+		System.out.println("menu()");
+		
+		final Dialog dialog = new Dialog(this); 
+    	dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+    	
+    	dialog.setContentView(R.layout.vscrolldlg);
+    	
+    	ImageView title_iv = (ImageView) dialog.findViewById(R.id.vscrollIV);
+    	title_iv.setImageResource(R.drawable.menuwht256);
+    	TextView title_tv = (TextView) dialog.findViewById(R.id.vscrollTV);
+    	//title_tv.setText("Scroll and tap to select an option");
+    	title_tv.setText("Menu");
+    	
+    	LinearLayout vscLL = (LinearLayout) dialog.findViewById(R.id.vscrollLL);
+    	
+    	
+    	//populate the scrollview with menu option views TODO this should come from a file instead of hard coded so can add to it later
+    	
+    	LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+    	params.setMargins(0, 1, 0, 1); //have to add programmatically as it ignores xml margin settings. bug. separates the items slightly
+    	
+    	View mainMenu = LayoutInflater.from(this).inflate(R.layout.pic_text_item, null);
+    	ImageView mainMenuIV = (ImageView) mainMenu.findViewById(R.id.pic_textIV);
+    	mainMenuIV.setImageResource(R.drawable.menugrn256);
+    	TextView mainMenuTV = (TextView) mainMenu.findViewById(R.id.pic_textTV);
+    	mainMenuTV.setText("Exit to Main Menu");
+    	
+    	mainMenu.setOnClickListener(new OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				dialog.dismiss();
+				Intent intent = new Intent(SongMixer.this, MainMenu.class);				 
+				startActivity(intent);	   		    							
+			}    		
+    	});    	
+    	
+    	mainMenu.setLayoutParams(params);    	
+    	vscLL.addView(mainMenu);
+    	
+    	View songNew = LayoutInflater.from(this).inflate(R.layout.pic_text_item, null);
+    	ImageView songNewIV = (ImageView) songNew.findViewById(R.id.pic_textIV);
+    	songNewIV.setImageResource(R.drawable.scofile256);
+    	TextView songNewTV = (TextView) songNew.findViewById(R.id.pic_textTV);
+    	songNewTV.setText("Create a New Song");
+    	
+    	songNew.setOnClickListener(new OnClickListener() {
+			@Override
+			public void onClick(View v) {							
+				dialog.dismiss();	
+				songNew();		    							
+			}    		
+    	});
+    	
+    	songNew.setLayoutParams(params);
+    	vscLL.addView(songNew);   
+    	
+    	View songLoad = LayoutInflater.from(this).inflate(R.layout.pic_text_item, null);
+    	ImageView songLoadIV = (ImageView) songLoad.findViewById(R.id.pic_textIV);
+    	songLoadIV.setImageResource(R.drawable.scofile256);
+    	TextView songLoadTV = (TextView) songLoad.findViewById(R.id.pic_textTV);
+    	songLoadTV.setText("Load a Saved Song");
+    	
+    	songLoad.setOnClickListener(new OnClickListener() {
+			@Override
+			public void onClick(View v) {							
+				dialog.dismiss();	    		
+				songChooser();						
+			}    		
+    	});
+    	
+    	songLoad.setLayoutParams(params);
+    	vscLL.addView(songLoad); 
+ 
+    	View midiLoad = LayoutInflater.from(this).inflate(R.layout.pic_text_item, null);
+    	ImageView midiLoadIV = (ImageView) midiLoad.findViewById(R.id.pic_textIV);
+    	midiLoadIV.setImageResource(R.drawable.midi256);
+    	TextView midiLoadTV = (TextView) midiLoad.findViewById(R.id.pic_textTV);
+    	midiLoadTV.setText("Import a MIDI Song");
+    	
+    	midiLoad.setOnClickListener(new OnClickListener() {
+			@Override
+			public void onClick(View v) {							
+				dialog.dismiss();	    		
+				midiChooser();						
+			}    		
+    	});
+    	
+    	midiLoad.setLayoutParams(params);
+    	vscLL.addView(midiLoad); 
+    	
+    	
+    	dialog.show();
+		
+		//need a scrollable list w icon left + option text
+		//Main Menu
+		//Songs - new or saved
+		//Midi - import. sub option under Songs dialog or on its own?
 		
 	}
 	
@@ -1271,6 +1713,200 @@ public class SongMixer extends Activity {
         });	
 		
 	}
+	
+	
+//===== MIDI FUNCTIONS ===========================================================================================
+	
+	private void midiChooser() {
+		System.out.println("midiChooser()");
+		
+		fileChooser("Midi", new PromptRunnable() {
+			
+			public void run() {				
+				String filename = this.getValue(); //the returned file path								
+				new getMidiAsync().execute(filename); 				
+			}			
+		});
+	}
+	
+	public class getMidiAsync extends AsyncTask <String, Integer, String> {	//receives the midi file name
+		
+		boolean midiOK; //flag for each step of the processing chain
+		
+		Dialog dialog = new Dialog(SongMixer.this); 
+				
+		@Override
+		protected void onPreExecute() {
+			super.onPreExecute();				
+	      
+			dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+			dialog.setContentView(R.layout.mididlg);
+			
+			//TextView title = (TextView) dialog.findViewById(R.id.midiTitle);
+		    TextView tv1 = (TextView) dialog.findViewById(R.id.midiTV1);
+		    TextView tv2 = (TextView) dialog.findViewById(R.id.midiTV2);
+		    TextView tv3 = (TextView) dialog.findViewById(R.id.midiTV3);
+		    TextView tv4 = (TextView) dialog.findViewById(R.id.midiTV4);
+		    TextView tv5 = (TextView) dialog.findViewById(R.id.midiTV5);
+  
+			tv1.setText("Please wait...");
+			tv2.setVisibility(View.INVISIBLE); //make these invisible while processing midi file
+			tv3.setVisibility(View.INVISIBLE);
+			tv4.setVisibility(View.INVISIBLE);
+			tv5.setVisibility(View.INVISIBLE);
+			
+			Button OKBtn = (Button) dialog.findViewById(R.id.midiOKbtn);  
+			OKBtn.setVisibility(View.GONE);			
+  
+			dialog.show();
+		}
+
+		@Override
+			protected String doInBackground(String... params) {	
+			
+			song = new Song(); //re-initialize
+			
+			//create a default song.fileName, song.name & song.info from the MIDI file name		
+			String midiFname = params[0]; //midi file name passed in on method call
+			String rootName;
+			String[] elements = midiFname.split("\\."); //discard the .mid part
+			rootName = elements[0];
+			
+			//create a unique name that isn't a duplicate of any in Songs folder- Note: user is unaware of this happening until asked later if want to save the converted file
+			String songName = rootName;
+			boolean unique = false;
+			int count = 1; //to concat a number to duplicates
+			while (!unique) {				 
+				String checkPath = gv.extStorPath + "/DittyBot/Songs/" + songName  + ".dbs";
+				File checkFile = new File(checkPath);
+				if (!checkFile.exists()) {
+					unique = true; //exit loop, use name
+				}
+				else { //then a song with that name already exists
+					System.out.println("getMidiAsync file name is a duplicate, creating new one");
+					songName = rootName + "_" + Integer.toString(count);
+					count++;
+				}
+			}			
+			song.fileName = songName + ".dbs";
+			song.name = songName;
+			song.info = "This song file was translated from the MIDI file: " + midiFname;			
+			
+			//create a Midi class object 
+			String midiFpath = gv.extStorPath + "/DittyBot/Midi/" + midiFname; 			
+			midi = new Midi(SongMixer.this, midiFpath);
+			
+			if(midi.preProcess()) { //open midi file, get header info & track data locations in file
+				System.out.println("**preProcess() done**");			
+				System.out.println("fileSize " + midi.fileSize);
+				System.out.println("format type: " + midi.format_type);
+				System.out.println("tracks found: " + midi.num_tracks);
+				System.out.println("time div: " + midi.ppqn);			
+			}
+			else {
+				System.out.println(midi.error_message); 
+			}			
+			
+			//loop loading and processing each midi track's data
+			
+			for (int i=0; i < midi.num_tracks; i++) { //includes drum_tracks				
+				if (midi.getTrackData(i)) {
+					System.out.println("getTrackData() track " + i + " OK");
+				} else {
+					System.out.println(midi.error_message);
+					midiOK = false;
+					return null;
+				}
+				
+				List<Integer> notes_ar = new ArrayList<Integer>(); //stores NoteOn/Off info as single values 
+				
+				if (midi.readMidi(song, notes_ar)) {
+					System.out.println("readMidi() track " + i + " OK");
+				} else {
+					System.out.println("LaunchActivity problem in readMidi()"); //TODO set up error message in Midi class
+					midiOK = false;
+					return null;
+				}
+				
+				if (midi.formatNotes(song, notes_ar)) {
+					System.out.println("formatNotes() track " + i + " OK");
+				} else {
+					System.out.println("LaunchActivity problem in formatNotes()");
+					midiOK = false;
+					return null;
+				}								
+			}
+						
+			System.out.println("******** this MIDI song has " + song.tracks.size() + " instrument tracks *********");
+			System.out.println("and " + song.drum_tracks.size() + " drum tracks *********");
+			
+			midiOK = true;
+			//midi = null; //explicit attempt to reclaim memory			
+			
+			return null;
+		}
+		
+		@Override
+		   protected void onPostExecute(String result) {
+		      super.onPostExecute(result);
+		      
+		      ProgressBar spinner = (ProgressBar) dialog.findViewById(R.id.midiProgSpnr);
+		      spinner.setVisibility(View.GONE);
+		      
+		      Button OKBtn = (Button) dialog.findViewById(R.id.midiOKbtn);
+		      OKBtn.setVisibility(View.VISIBLE);	
+		      
+		      if (midiOK) {
+		    	  TextView title = (TextView) dialog.findViewById(R.id.midiTitle);
+			      title.setText("MIDI FIle Converted for DittyBot");
+			      
+				  TextView tv1 = (TextView) dialog.findViewById(R.id.midiTV1);
+				  tv1.setText("This MIDI file was successfully converted");
+				  
+				  TextView tv2 = (TextView) dialog.findViewById(R.id.midiTV2);
+				  tv2.setVisibility(View.VISIBLE);
+				  tv2.setText("File size: " + midi.fileSize + " bytes");
+				  
+				  TextView tv3 = (TextView) dialog.findViewById(R.id.midiTV3);
+				  tv3.setVisibility(View.VISIBLE);
+				  tv3.setText("Format type: " +  midi.format_type);
+				  
+				  TextView tv4 = (TextView) dialog.findViewById(R.id.midiTV4);
+				  tv4.setVisibility(View.VISIBLE);
+				  tv4.setText("Tracks: " + midi.num_tracks);
+				  
+				  TextView tv5 = (TextView) dialog.findViewById(R.id.midiTV5);
+				  tv5.setVisibility(View.VISIBLE);
+				  tv5.setText("This file will now be loaded in the Song Editor   ");				  
+				  
+					
+				  int songLength = songLength();
+				  System.out.println("getMidiAsync songLength " + songLength);
+				
+				  //new songSave().execute();	********* UNCOMMENT after testing				  				  
+				  
+				  midi = null; //try to force reclaim of memory
+		      }
+		      else {
+		    	  TextView title = (TextView) dialog.findViewById(R.id.midiTitle);
+			      title.setText("Error converting MIDI FIle");
+			      
+				  TextView tv1 = (TextView) dialog.findViewById(R.id.midiTV1);
+				  tv1.setText("There was a problem converting this MIDI file. The file may be corrupted." +
+				  		"Exiting process.");
+				  //TODO need more to handle this?
+		      }						
+			  	      
+			OKBtn.setOnClickListener(new OnClickListener() {
+				@Override
+				public void onClick(View v) {
+					new songLoad().execute(song.fileName); //assumes songSave has completed
+					dialog.dismiss();										
+				}    		
+	    	});	    	
+	    	 		      
+		}
+	}	
 	
 //LIBPD =================================================================================================
 

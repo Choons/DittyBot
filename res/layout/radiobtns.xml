@@ -4,31 +4,37 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent" >
 
-    <ImageView
-        android:id="@+id/radioBtnsIV"
+    <LinearLayout
+        android:id="@+id/radioBtnsLL"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentTop="true"
-        android:layout_marginLeft="5dp" />
+        android:orientation="horizontal" >
 
-    <TextView
-        android:id="@+id/radioBtnsTV"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignTop="@+id/radioBtnsIV"
-        android:layout_marginLeft="4dp"
-        android:layout_marginTop="3dp"
-        android:layout_toRightOf="@+id/radioBtnsIV"
-        android:text="TextView"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp" />
+        <ImageView
+            android:id="@+id/radioBtnsIV"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginLeft="5dp" />
+
+        <TextView
+            android:id="@+id/radioBtnsTV"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:layout_marginLeft="4dp"
+            android:layout_marginTop="3dp"
+            android:text="TextView"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+    </LinearLayout>
 
     <RadioGroup
         android:id="@+id/radioBtnsRG"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/radioBtnsIV"
+        android:layout_below="@id/radioBtnsLL"
         android:layout_marginLeft="10dp"
         android:layout_marginRight="10dp"
         android:layout_marginTop="10dp" >
@@ -54,7 +60,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="___Option 3" />
-
     </RadioGroup>
 
     <LinearLayout
@@ -67,7 +72,7 @@
             android:id="@+id/radioBtnsOK"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="5dp"
+            android:layout_margin="3dp"
             android:background="@drawable/btnblk"
             android:minHeight="50dp"
             android:minWidth="80dp"
@@ -79,14 +84,13 @@
             android:id="@+id/radioBtnsCncl"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="5dp"
+            android:layout_margin="3dp"
             android:background="@drawable/btnblk"
             android:minHeight="50dp"
             android:minWidth="80dp"
             android:text="Cancel"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
-
     </LinearLayout>
 
 </RelativeLayout>

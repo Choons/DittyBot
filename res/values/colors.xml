@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="black">#FF000000</color>
     <color name="gunmetal">#FF333337</color>
     <color name="deepred">#FF7F0000</color>
+    <color name="pressed">#FF00E070</color>
 </resources>

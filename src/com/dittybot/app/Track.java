@@ -1,5 +1,6 @@
 package com.dittybot.app;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import android.content.Context;
@@ -10,8 +11,8 @@ public class Track {
 	
 	public String info = ""; //up to 256 characters. could put what written for/on.	
 	public int volume = 50; //0 -> 100 percent
-	public int pan = 50; //0 -> 100, 0=full left, 100=full right	
-	public List<Integer> notes;	//start/note/duration/volume/#dynbytes   stride 5
+	//public int pan = 50; //0 -> 100, 0=full left, 100=full right	
+	public List<Integer> notes;	//start/note/duration/volume/pan/#dynbytes   stride 6
 	public List<Integer> dyn; //dynamics info/instructions, if any. Parsed after the #dynbytes if non-zero 
 		
 	//run time variables
@@ -29,6 +30,8 @@ public class Track {
 	public Track(Context context) {		
 		
 		this.context = context;
+		
+		notes = new ArrayList<Integer>();
 		
 	}
 	

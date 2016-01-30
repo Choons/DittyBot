@@ -242,6 +242,8 @@ public class Midi {
 		return status;
 	}	
 	
+	ArrayList<List<Integer>> bendLists = new ArrayList<List<Integer>>(); //list of track's pitch bend lists
+	
 	public boolean readMidi(Song song, List<Integer> notes_ar) { //translate midi data into my dbs format & add to a new track object
 		System.out.println("readMidi() ");
 		
@@ -249,68 +251,84 @@ public class Midi {
 		boolean sysex_open = false; //meh annoying fucking flag for possible divided sysex messages
 		boolean tempofound = false; 		
 		ListIterator<Byte> pointer = track_bytes.listIterator();		
-		int delta_time; //the time data in a midi file. a variable length quantity (VLQ)
-		int total_time = 0; //total elapsed ticks from beginning of track
+		int delta_ticks; //# of ticks since last message. a variable length quantity (VLQ)
+		int total_ticks = 0; //total elapsed ticks from beginning of track
 		int length; //data bytes length field in midi files. a variable length quantity (VLQ)
 		String chan_hex; //low nibble used for channel in some events 
 		int channel;
 		int note; 
-		int vel; //might use. volume in Note On		
+		int vel; //volume in Note On	
+		int pan; //pan value 0=hard left, 127=hard right		
+		
+		int prevInfPt = -1; //value of last inflection point TODO could just look at last value in the 
+		int pb_curr; //the value of the latest pitch bend message
+		
+		List<PbPoint> pbPts = new ArrayList<PbPoint>(); //running list of bend points for each track
+		
 		
 		while (pointer.hasNext()) {
 			
 			//--------- get Delta-Time ----------------------------------------------------------
 			
-			delta_time = checkVLQ(pointer); //actually pass the pointer object itself. nifty trick
+			delta_ticks = checkVLQ(pointer); //actually pass the pointer object itself. nifty trick
 			//System.out.println("delta_time " + delta_time);
 			
-			total_time += delta_time; //running total of ticks			
+			total_ticks += delta_ticks; //running total of ticks			
 
-			//-------- get Messages -----------------------------------------------------------------				
+			//-------- get MIDI Messages -----------------------------------------------------------------				
 			
-			String hexstr = String.format("%02X", pointer.next());
-			Character char1 = hexstr.charAt(0);	//get hex char at top "nibble"
-			Character char2 = hexstr.charAt(1);	//get hex char at low "nibble"			
+			String hexstr = String.format("%02X", pointer.next()); //2 hex string codes in one byte
+			Character char1 = hexstr.charAt(0);	//get hex char at top "nibble" = message type
+			Character char2 = hexstr.charAt(1);	//get hex char at low "nibble" = midi channel message goes with			
 			
-			switch (char1.charValue()) {
-			case '8':
+			switch (char1.charValue()) { //char1 is the MIDI message type
+			case '8': //Note Off
 				chan_hex = String.valueOf(char2);				
 				channel = Integer.parseInt(chan_hex, 16) + 1; //convert hex string to int & add 1 so channels run 1-16				
 				note = pointer.next() & 0xFF;
 				vel = pointer.next() & 0xFF;
-				notes_ar.add(total_time);
+				notes_ar.add(total_ticks);
 				notes_ar.add(0); //add 0 as code for Note Off
 				notes_ar.add(channel); 
 				notes_ar.add(note);
 				notes_ar.add(vel);
-				//System.out.println("8 Note Off n=" + note + " v=" + vel); 
+				if (channel == 1) {
+					System.out.println("-- Note Off n=" + note + " ch=" + channel + " t=" + total_ticks); 
+				}				
 				break;
-			case '9':
+			case '9': //Note On
 				chan_hex = String.valueOf(char2);					
 				channel = Integer.parseInt(chan_hex, 16) + 1;				
 				note = pointer.next() & 0xFF;
-				vel = pointer.next() & 0xFF;
-				notes_ar.add(total_time);
+				vel = pointer.next() & 0xFF; //volume
+				notes_ar.add(total_ticks);
 				notes_ar.add(1); //add 1 as code for Note On
 				notes_ar.add(channel); 
 				notes_ar.add(note);
 				notes_ar.add(vel);
-				//System.out.println("9 Note On n=" + note + " v=" + vel); 
+				if (channel == 1) {
+					
+				}
+				System.out.println("++ Note On n=" + note + " ch=" + channel + " t=" + total_ticks); 
 				break;
-			case 'A':
+			case 'A': //Note Aftertouch
 				pointer.next(); //note
 				pointer.next(); //pressure
 				//System.out.println("A Note Aftertouch");
 				break;
-			case 'B':
-				pointer.next(); //controller
-				pointer.next(); //value
+			case 'B': //Controller. for things like main volume 7 (0x07), balance 8 (0x08), pan 10 (0x0A)
+				int ctrl = pointer.next() & 0xFF; //controller type				
+				int value = pointer.next() & 0xFF; //value 0-127
+				if (ctrl == 10) { //a panning message
+					pan = value;
+					System.out.println("******PAN MESSAGE****** " + pan);
+				}
 				//System.out.println("B Controller");
 				break;
-			case 'C': //***** Instrument info ******
+			case 'C': //Program Change ***** Instrument info ******
 				chan_hex = String.valueOf(char2);				
 				channel = Integer.parseInt(chan_hex, 16) + 1;
-				int instmt_num = pointer.next() & 0xFF; //instrument code				
+				int instmt_num = pointer.next() & 0xFF; //MIDI instrument code				
 				System.out.println("C Program Change ch=" + channel + " instmt_num: " + instmt_num);				
 				setupTrack(song, channel, instmt_num);				
 				break;
@@ -318,12 +336,82 @@ public class Midi {
 				pointer.next(); //pressure
 				//System.out.println("D Channel Aftertouch");
 				break;
-			case 'E':
-				pointer.next();
-				pointer.next();
-				//System.out.println("E Pitch Bend");
+			case 'E': //Pitch Bend - 14 bit value constructed from 2 bytes
+				chan_hex = String.valueOf(char2);				
+				channel = Integer.parseInt(chan_hex, 16) + 1;
+				byte lsb = pointer.next(); //least significant bits. take lower 7
+				byte msb = pointer.next(); //most significant bits. take lower 7
+				pb_curr = 0; //clear all bits
+				pb_curr = (msb & 0xFF) << 7 | (lsb & 0xFF); //shift most signif. 7 bits left & concatenate the lsb's at end
+				
+				if (channel == 1) {
+					System.out.println("pb " + pb_curr + " t=" + total_ticks);
+				}
+				
+				//find and store the inflection points of the pitch bend data
+				boolean found = false; //flag for whether a pbPt already exists for the channel
+				for (int i=0; i < pbPts.size(); i++) {
+					if (pbPts.get(i).channel == channel) { //make sure looking at correct channel
+						
+						//i will run 0 -> 15 for the channels 1 -> 16
+						//check if the just previous pbPt has the same value as the last inflection point
+						//this is the case when bend value hasn't changed, maybe for quite some time
+						//there needs to be another inflection point recorded if 
+						
+						int endIndex = bendLists.get(i).size() - 2; //index of last inflection point value
+						prevInfPt = bendLists.get(i).get(endIndex);
+						
+						
+						if (pbPts.get(i).direction == 0) { //then new, need to determine direction
+							
+							if (pb_curr > pbPts.get(i).value) {
+								pbPts.get(i).direction = 1;
+							}
+							else if (pb_curr < pbPts.get(i).value) {
+								pbPts.get(i).direction = -1;
+							}
+							
+							pbPts.get(i).value = pb_curr; //"walk" the points
+							System.out.println("initial direction set: " + pbPts.get(i).direction);
+						}
+						else if (pbPts.get(i).direction == 1) { //bending up
+							if (pb_curr < pbPts.get(i).value) { //inflection point - going back down
+								pbPts.get(i).direction = -1;
+								pbPts.get(i).value = pb_curr;
+								System.out.println("inflection up to down");
+							}							
+						}
+						else if (pbPts.get(i).direction == -1) { //bending down
+							if (pb_curr > pbPts.get(i).value) { //inflection point - going back down
+								pbPts.get(i).direction = 1;
+								pbPts.get(i).value = pb_curr;
+								System.out.println("inflection down to up");
+							}	
+						}
+						
+						found = true;
+						break;
+					}
+				}
+				
+				if (!found) { //first time channel has come up, create a bendList and PbPoint object & add to list
+					PbPoint pbPt = new PbPoint();
+					pbPt.channel = channel;
+					pbPt.value = pb_curr;
+					pbPt.ticks = total_ticks;
+					pbPts.add(pbPt);
+										
+					List<Integer> bendList = new ArrayList<Integer>(); //holds each bend target point in value|time pairs
+					bendList.add(pbPt.value); //the initial pitch bend value for the track
+					bendList.add(pbPt.ticks);					
+					bendLists.add(bendList);
+					
+					System.out.println("created new pbPt " + channel);
+				}
+				
+										
 				break;
-			case 'F':
+			case 'F': //System-wide messages
 				//System.out.println("F Sysex or Meta Event");
 				
 				//Meta Events
@@ -621,7 +709,16 @@ public class Midi {
 		
 	}
 	
-	private void setupTrack(Song song, int channel, int instmt_num) { //song passed in from MainScreen, tracks added here
+	public class PbPoint { //convenience class for a pitch bend
+		
+		int channel;
+		int value;		
+		int ticks;
+		//boolean isNew = true; //
+		int direction = 0; //0 when created, 1 when bending higher, -1 when bending lower
+	}
+	
+	private void setupTrack(Song song, int channel, int instmt_num) { //called from readMidi() in 'C' Program Change, tracks added with instrument
 		System.out.println("setupTrack() ch=" + channel + " instmt_num " + instmt_num);						
 		
 		if (channel != 10) { //channel 10 is drums in MIDI
@@ -802,7 +899,6 @@ public class Midi {
 			song.drum_tracks.add(dtrack);
 		}		
 		
-		
 	}
 	
 	public boolean formatNotes(Song song, List<Integer> notes_ar) { //turns MIDI On/Off mote msgs into dbs start/note/dur format
@@ -812,6 +908,7 @@ public class Midi {
 		boolean status = false;
 		
 		int trackIndex = song.tracks.size() - 1;
+		System.out.println("trackIndex " + trackIndex);
 		
 		int channel;
 		int note;
@@ -828,7 +925,7 @@ public class Midi {
 		
 		int matched_notes = 0;
 		
-		for (int i=0; i < notes_ar.size(); i += 5) { //stride 5
+		for (int i=0; i < notes_ar.size(); i += 5) { //stride 5 ***TODO this will be 6 or more with pan
 			if (notes_ar.get(i+1) == 1) { // 1 = Note On
 				onticks = (double) notes_ar.get(i);
 				channel = notes_ar.get(i+2);

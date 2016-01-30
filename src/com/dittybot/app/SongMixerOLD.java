@@ -497,7 +497,7 @@ public class SongMixerOLD extends Activity implements MaxScrollListener, ScrollV
     	dialog.setContentView(R.layout.radiobtns);
     	
     	ImageView iv = (ImageView) dialog.findViewById(R.id.radioBtnsIV);
-		iv.setImageResource(R.drawable.scofile48);
+		//iv.setImageResource(R.drawable.scofile48);
 		
 		TextView tv = (TextView) dialog.findViewById(R.id.radioBtnsTV);
 		tv.setText("Choose a Song Option:  ");
@@ -1456,8 +1456,8 @@ public class SongMixerOLD extends Activity implements MaxScrollListener, ScrollV
 					out.write(vb);
 					
 					//1 byte pan
-					byte pb = (byte) song.tracks.get(i).pan;
-					out.write(pb);
+					//byte pb = (byte) song.tracks.get(i).pan;
+					//out.write(pb);
 					
 					//-------- Notes Data -----------
 					
@@ -1666,7 +1666,7 @@ public class SongMixerOLD extends Activity implements MaxScrollListener, ScrollV
     	
     	//TODO image to left of dialog title. If can find an icon that works for track use instead
     	ImageView iv = (ImageView) dialog.findViewById(R.id.radioBtnsIV);
-		iv.setImageResource(R.drawable.scofile48);
+		//iv.setImageResource(R.drawable.scofile48);
     	
 		TextView tv = (TextView) dialog.findViewById(R.id.radioBtnsTV);
 		tv.setText("Add a Track to this song:  ");
@@ -1722,7 +1722,7 @@ public class SongMixerOLD extends Activity implements MaxScrollListener, ScrollV
     	
     	//TODO image to left of dialog title. If can find an icon that works for track use instead
     	ImageView iv = (ImageView) dialog.findViewById(R.id.radioBtnsIV);
-		iv.setImageResource(R.drawable.scofile48);
+		//iv.setImageResource(R.drawable.scofile48);
     	
 		TextView tv = (TextView) dialog.findViewById(R.id.radioBtnsTV);
 		tv.setText("Choose a track type:  ");
@@ -1807,7 +1807,7 @@ public class SongMixerOLD extends Activity implements MaxScrollListener, ScrollV
     	
     	ListView lv = (ListView) dialog.findViewById(R.id.filechsrLV);
     	List<String> fileList = new ArrayList<String>();    	
-    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.fnameTV, fileList, dirPath));
+    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.pic_textTV, fileList, dirPath));
     	
     	lv.setOnItemClickListener(new OnItemClickListener() {	
 			@Override
@@ -2368,7 +2368,7 @@ public class SongMixerOLD extends Activity implements MaxScrollListener, ScrollV
 		
 		if (type == 0) { //instmt track
 			trackRL.setBackgroundColor(0xFFFF0000);
-			trackIV.setImageResource(R.drawable.scofile48);
+			//trackIV.setImageResource(R.drawable.scofile48);
 			trackTV.setText("Instrument Tracks");
 		}
 		if (type == 1) { //audio track
@@ -3041,7 +3041,7 @@ public class SongMixerOLD extends Activity implements MaxScrollListener, ScrollV
     	//lv.setBackgroundColor(gv.scrollColor);
     	// FileAdapter is a custom adapter class below
     	List<String> fileList = new ArrayList<String>(); //wonky to pass here instead of making the list in the adapter but roll with it for super class constructor   	
-    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.fnameTV, fileList, dirPath));
+    	lv.setAdapter(new FileAdapter(this, android.R.layout.simple_list_item_1, R.id.pic_textTV, fileList, dirPath));
     	
     	lv.setOnItemClickListener(new OnItemClickListener() {	
 			@Override
@@ -3151,10 +3151,10 @@ public class SongMixerOLD extends Activity implements MaxScrollListener, ScrollV
 		@Override
 		public View getView(int position, View convertView, ViewGroup parent) {			
 			LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-			View row = inflater.inflate(R.layout.file_item, parent, false);
+			View row = inflater.inflate(R.layout.pic_text_item, parent, false);
 			
-			ImageView iv = (ImageView) row.findViewById(R.id.ficonIV);
-			TextView tv = (TextView) row.findViewById(R.id.fnameTV);				
+			ImageView iv = (ImageView) row.findViewById(R.id.pic_textIV);
+			TextView tv = (TextView) row.findViewById(R.id.pic_textTV);				
 			
 			tv.setText(fnames[position]);			
 						
@@ -3166,13 +3166,13 @@ public class SongMixerOLD extends Activity implements MaxScrollListener, ScrollV
     			if (whatsit.isFile()) {    				    				
     				String[] temp = fnames[position].split("\\.");    				 
     				if (temp[temp.length-1].contentEquals("dbs")) { 
-    					iv.setImageResource(R.drawable.scofile48);
+    					//iv.setImageResource(R.drawable.scofile48);
     				}
     				else if (temp[temp.length-1].contentEquals("wav")) {
-    					iv.setImageResource(R.drawable.tapefile4_48);
+    					//iv.setImageResource(R.drawable.tapefile4_48);
     				}
     				else if (temp[temp.length-1].contentEquals("mid")) {    					
-    					iv.setImageResource(R.drawable.midi48);
+    					//iv.setImageResource(R.drawable.midi48);
     				}
     				else {
     					System.out.println("unrecognized file type"); // TODO handle with maybe a question mark img
