@@ -2465,6 +2465,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 			//loop loading and processing each midi track's data
 			
 			for (int i=0; i < midi.num_tracks; i++) { //includes drum_tracks				
+				/*
 				if (midi.getTrackData(i)) {
 					System.out.println("getTrackData() track " + i + " OK");
 				} else {
@@ -2474,6 +2475,7 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 				}
 				
 				List<Integer> notes_ar = new ArrayList<Integer>(); //stores NoteOn/Off info as single values 
+				
 				
 				if (midi.readMidi(song, notes_ar)) {
 					System.out.println("readMidi() track " + i + " OK");
@@ -2489,7 +2491,8 @@ public class SongMixerOLD2 extends Activity implements MaxScrollListener, Scroll
 					System.out.println("LaunchActivity problem in formatNotes()");
 					midiOK = false;
 					return null;
-				}								
+				}	
+				*/							
 			}
 						
 			System.out.println("******** this MIDI song has " + song.tracks.size() + " instrument tracks *********");

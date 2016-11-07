@@ -13,6 +13,7 @@ import android.content.Context;
 
 /**
  * receives a midi file path, reads midi data and converts it into a DittyBot Song object
+ * 11/7
  */
 
 public class Midi {	
@@ -22,17 +23,21 @@ public class Midi {
 	
 	private String filepath; //maybe want separate public fileName as well?	
 	public long fileSize;
-	
-	public short format_type; //0=contains just one track, 1=contains multiple tracks to play simultaneously. 1st track is a tempo track w/ timing info, 2=multiple independent tracks with own play times
+	public short format_type; //midi format. 0=contains just one track, 1=contains multiple tracks to play simultaneously. 1st track is a tempo track w/ timing info, 2=multiple independent tracks with own play times
 	public short num_tracks = -1; //number of tracks in song	
 	public int time_type = -1; //0=PPQN, 1=SMPTE .. ?need this? going to have tempo in BPM in dbs format
-	public int ppqn = -1; //pulses per quarter note. only used in time_type = 0 files
+	public int ppqn = -1; //pulses per quarter note. 
 	public double fps = -1; //frames per second. only used in time_type = 1 SMPTE files
 	public double subframes = -1; //"ticks" per frame. only used in time_type = 1 SMPTE files	
 	public double tickms = -1; //fundamental time division that can be derived for both time_type files
-	
+	public double pbThldMs = 100; //threshold to help find when pitch bend value "flatlines" for "a while" at a single value. in msec. arbitrary TODO make settable
+	public int pbValThld = 512; //threshold delta "jump" for pitch bend value to add another inflection point there. 1/8th the value between 2 MIDI notes. arbitrary TODO make settable	
+	public double volThldMs = 100; //threshold to help find when dynamic volume value CC11 "flatlines" for "a while" at a single value.
+	public int volValThld = 5; //threshold delta "jump" for volume. arbitrary TODO make settable	
+	public double panThldMs = 100; //threshold to help find when dynamic pan/bal value CC8 or CC10 "flatlines" for "a while" at a single value.
+	public int panValThld = 5; //threshold delta "jump" for pan. arbitrary TODO make settable
 	private List<Long> track_ptrs; //track start & end byte pointers. so start at an index, the end value at index+1
-	private List<Byte> track_bytes; //array to hold raw track data in memory for faster processing
+	public List<ChanTrack> chanTracks; //list of raw Note On/Note Off lists for each channel of midi file	
 			
 	public String error_message = "error"; //use this so can access error info from main UI
 	
@@ -42,7 +47,84 @@ public class Midi {
 		gv = ((GlobalVars)context.getApplicationContext());
 		filepath = fpath;		
 		track_ptrs = new ArrayList<Long>();			
-		track_bytes = new ArrayList<Byte>();		
+		chanTracks = new ArrayList<ChanTrack>();
+	}
+	
+	public class ChanTrack { //stores raw midi data separated by channel. assumes only 1 instrument per channel used in midi file		
+		
+		int channel;
+		int mstrVol = 63; //master volume set by CC7 message. range 0 -> 127. default in middle
+		
+		List<Integer> notes = new ArrayList<Integer>(); 
+		
+		CCPoint volPt = new CCPoint();
+		List<Integer> volList = new ArrayList<Integer>(); //holds each volume target point in value|time pairs
+		
+		CCPoint panPt = new CCPoint();
+		List<Integer> panList = new ArrayList<Integer>(); //holds each pan target point in value|time pairs
+		
+		CCPoint pbPt = new CCPoint(); 
+		List<Integer> bendList = new ArrayList<Integer>(); //holds each pitch bend target point in value|time pairs
+		
+		/**
+		 * these objects are created at same time as the dbs tracks and added to the chanTracks list so the indices 
+		 * correlate to those of the dbs tracks in the Song object
+		 */
+	}
+	
+	public class CCPoint { //convenience class for midi CC data. acts like a pointer moving along the file's data points		
+		int value;		
+		int ticks;		
+		int direction = 0; //0 when data not yet changing, 1 when values going higher, -1 when values going lower
+	}
+	
+	public boolean convert(Song song) { //full method sequence to read a midi file and convert to dbs file format
+		
+		boolean status = true;
+		
+		if (preProcess()) { 
+			System.out.println("**preProcess() done**");			
+			System.out.println("fileSize " + fileSize);
+			System.out.println("format type: " + format_type);
+			System.out.println("tracks found: " + num_tracks);
+			System.out.println("time div: " + ppqn);	
+		}
+		else {
+			status = false;
+			return status;
+		}
+		
+		for (int i=0; i < num_tracks; i++) { 
+			
+			List<Byte> track_bytes = new ArrayList<Byte>(); 
+			
+			if (getTrackData(i, track_bytes)) { //load all the track's raw data into memory for faster processing
+				System.out.println("getTrackData() track " + i + " OK");
+			} else {
+				System.out.println(error_message);
+				status = false;
+				return status;
+			}					
+			
+			if (readMidi(song, track_bytes)) { 
+				System.out.println("readMidi() track " + i + " OK");
+			} else {
+				System.out.println("readMidi() track " + i + " failed"); 
+				status = false;
+				return status;
+			}				
+		}		
+		
+		if (formatNotes(song)) {
+			System.out.println("formatNotes() OK");			
+		}
+		else {
+			System.out.println(""); 
+			status = false;
+			return status;
+		}
+		
+		return status;
 	}
 	
 	public boolean preProcess() { //get the MThd header info & track start and end points in midi file
@@ -73,7 +155,7 @@ public class Midi {
 				return status; //kick out of processing the file
 			}			
 			
-			format_type = in.readShort(); //0, 1, or 2. see the MIDI File Format. not used in DittyBot 
+			format_type = in.readShort(); //MIDI file type 0, 1, or 2. see the MIDI File Format 
 			if (format_type != 0 && format_type != 1 && format_type != 2) {
 				error_message = "Incorrect format type. File may be corrupted"; 
 				return status; //kick out of processing the file
@@ -81,11 +163,11 @@ public class Midi {
 			
 			if (format_type == 2) {
 				//TODO these are very rare, and I'm not implementing it right now
-				error_message = "This is a format type 2 MIDI file. This format is not supported"; 
+				error_message = "This is a format type 2 MIDI file. This file type is not supported"; 
 				return status; //kick out of processing the file
 			}
 			
-			num_tracks = in.readShort(); //# tracks in song. 1 - 65,535. TODO verify empirically
+			num_tracks = in.readShort(); //# tracks in song. 1 - 65,535. TODO verify empirically as often incorrect accdg. to research
 			
 			
 			//---------determine timing scheme used in midi file--------------					
@@ -97,15 +179,15 @@ public class Midi {
 			String timehex1 = String.format("%02X", time_divs[0]); //not used but might if go to a check top bit approach
 			String timehex2 = String.format("%02X", time_divs[1]);
 						
-			if (timeval1 < 0) { //negative first time div byte means SMPTE frames per second timing scheme				
+			if (timeval1 < 0) { //negative first time div byte means SMPTE (frames per second) timing scheme				
 				time_type = 1;
-				//FPS value should be -24, -25, -29, or -30. possible -97 for 29.97
+				//FPS value should be -24, -25, -29, or -30. possibly -97 for 29.97
 				fps = (double) Math.abs(timeval1); //TODO ? Should verify if is one of those four/five expected values
 				subframes = (double) Integer.parseInt(timehex2, 16); //resolution per frame (ticks)
 				
 				double msecs_frame = 1000/fps;
 				tickms = msecs_frame/subframes;
-				System.out.println("SMPTE file tickms = " + tickms);
+				System.out.println("SMPTE file tickms = " + tickms);				
 								
 				//TODO there's supposedly no tempo info in a SMPTE midi file so
 				//will need a way for user to surmise what is a 1/4 or 1/8th note and match tempo manually
@@ -178,11 +260,11 @@ public class Midi {
 			
 			//System.out.println("pointer " + in.getFilePointer()); //should equal file size
 			
-			if (num_tracks == track_ptrs.size()/2) {
+			if (num_tracks == track_ptrs.size()/2) { //then the #tracks field in file matches what was found
 				System.out.println("tracks found: " + num_tracks); 
 			}
 			else {
-				num_tracks = (short) (track_ptrs.size()/2); //go with own evidence
+				num_tracks = (short) (track_ptrs.size()/2); //go with own evidence, the #tracks field is known to be unreliable
 				System.out.println("mismatch between number of tracks field and tracks found");
 				//TODO maybe alert user there is something weird, but mainly just use the value determined by reading the data
 			}
@@ -199,17 +281,14 @@ public class Midi {
 		return status;
 	}
 	
-	public boolean getTrackData(int tracknum) { //loads a track's raw midi data into a RAM array for faster processing
+	public boolean getTrackData(int tracknum, List<Byte> track_bytes) { //loads a track's raw midi data into a RAM array for faster processing
 		System.out.println("-------getTrackData " + tracknum + " -------");
 		
-		boolean status = false;
+		boolean status = false;		
 		
-		track_bytes.clear(); //clear out any previous track data in bytes array
-		
-		int start_index = tracknum * 2; //start/end ptrs are stored as consecutive pairs in list
-		int end_index = start_index + 1;
-		long start_ptr = track_ptrs.get(start_index);
-		long end_ptr = track_ptrs.get(end_index);
+		int index = tracknum * 2; //start/end ptrs are stored as consecutive pairs in track_ptrs list		
+		long start_ptr = track_ptrs.get(index);
+		long end_ptr = track_ptrs.get(index+1);
 		System.out.println("start_ptr " + start_ptr + " end_ptr " + end_ptr);
 		
 		int size_field = -1; //track data size field stored in the file. reputed to be often wrong
@@ -224,7 +303,7 @@ public class Midi {
 			size_field = in.readInt(); //get the supposed data size stored in file
 			
 			while (in.getFilePointer() < end_ptr) {
-				track_bytes.add(in.readByte()); //put the track data in RAM
+				track_bytes.add(in.readByte()); //put the track data in RAM for faster processing
 			}	
 			
 			in.close();			
@@ -236,34 +315,38 @@ public class Midi {
 		}		
 		
 		System.out.println("reported data size: " + size_field + " size found " + track_bytes.size());
-		//the size_field value is apparently notorious for being wrong so just ignore it & use what you find		
+		//the size_field value is apparently notorious for being wrong so just ignore it & use what you find	
+		
+		/*
+		ListIterator<Byte> pointer = track_bytes.listIterator();
+		while (pointer.hasNext()) {
+			String hexstr = String.format("%02X", pointer.next()); //prints out the hexcode couplets of the track. for testing
+			System.out.println(hexstr);
+		}
+		*/
 		
 		status = true; //TODO this is totally glossed over. Set more rigorously
 		return status;
 	}	
 	
-	ArrayList<List<Integer>> bendLists = new ArrayList<List<Integer>>(); //list of track's pitch bend lists
 	
-	public boolean readMidi(Song song, List<Integer> notes_ar) { //translate midi data into my dbs format & add to a new track object
+	public boolean readMidi(Song song, List<Byte> track_bytes) { //translate midi data into my dbs format & add to a new track object
 		System.out.println("readMidi() ");
 		
-		boolean status = false;		
-		boolean sysex_open = false; //meh annoying fucking flag for possible divided sysex messages
+		boolean status = false;	//flag for whether function ran with/without errors
+		boolean sysex_open = false; //meh annoying fucking flag for possible divided midi sysex messages
 		boolean tempofound = false; 		
-		ListIterator<Byte> pointer = track_bytes.listIterator();		
+		ListIterator<Byte> pointer = track_bytes.listIterator(); //to iterate over the track data stored in RAM earlier	
+		Character evtType = null; //MIDI event type 8,9,A,B,C,D,E, or F. MIDI can use "running status" so need persistent variable
 		int delta_ticks; //# of ticks since last message. a variable length quantity (VLQ)
 		int total_ticks = 0; //total elapsed ticks from beginning of track
 		int length; //data bytes length field in midi files. a variable length quantity (VLQ)
-		String chan_hex; //low nibble used for channel in some events 
-		int channel;
-		int note; 
-		int vel; //volume in Note On	
-		int pan; //pan value 0=hard left, 127=hard right		
-		
-		int prevInfPt = -1; //value of last inflection point TODO could just look at last value in the 
-		int pb_curr; //the value of the latest pitch bend message
-		
-		List<PbPoint> pbPts = new ArrayList<PbPoint>(); //running list of bend points for each track
+		String chan_hex; //low nibble used for channel in some events 		
+		int channel = 1; //will be changed, but helps prevent that 'may not have been initialized' error
+		int note = 0; 
+		int vel = 0; //volume or expression in Note On	
+		int pan = 63; //pan value 0=hard left, 127=hard right			
+		int currPbVal = -1; //the value of the latest pitch bend message		
 		
 		
 		while (pointer.hasNext()) {
@@ -271,146 +354,142 @@ public class Midi {
 			//--------- get Delta-Time ----------------------------------------------------------
 			
 			delta_ticks = checkVLQ(pointer); //actually pass the pointer object itself. nifty trick
-			//System.out.println("delta_time " + delta_time);
+			//System.out.println("delta_ticks " + delta_ticks);
 			
 			total_ticks += delta_ticks; //running total of ticks			
 
-			//-------- get MIDI Messages -----------------------------------------------------------------				
+			//--------- get MIDI message --------------------------------------------------------------			
 			
-			String hexstr = String.format("%02X", pointer.next()); //2 hex string codes in one byte
-			Character char1 = hexstr.charAt(0);	//get hex char at top "nibble" = message type
-			Character char2 = hexstr.charAt(1);	//get hex char at low "nibble" = midi channel message goes with			
+			//check if a status or data byte to catch incidences of "running status"
+			byte midiByte = pointer.next(); 
+			int byteType = 0; //0=data byte, 1=status byte
+			if ((midiByte & 1 << 7) > 0) byteType = 1;
+			boolean running = false;
 			
-			switch (char1.charValue()) { //char1 is the MIDI message type
-			case '8': //Note Off
+			String hexstr = String.format("%02X", midiByte); //2 hex string codes in one byte
+			
+			//split out message and channel from the hex string pair
+			if (byteType == 1) { //status/event byte							
+				Character char1 = hexstr.charAt(0);	//get hex char at top "nibble" = message type
+				Character char2 = hexstr.charAt(1);	//get hex char at low "nibble" = midi channel the message goes with	
 				chan_hex = String.valueOf(char2);				
-				channel = Integer.parseInt(chan_hex, 16) + 1; //convert hex string to int & add 1 so channels run 1-16				
-				note = pointer.next() & 0xFF;
+				channel = Integer.parseInt(chan_hex, 16) + 1; //convert hex string to int & add 1 so channels run 1-16
+				
+				evtType = char1; //set whenever a new status byte occurs, otherwise retain for possible "running status" data bytes to follow
+			}
+			else { //then it's a data byte
+				running = true; //flag when a "running status" data byte is read instead of a status byte 
+			}
+			
+			boolean found = false; //flag for whether an existing chantrack with matching channel was found
+			
+			
+			//-------- Evaluate MIDI Messages -----------------------------------------------------------------	
+			
+			switch (evtType.charValue()) { 
+			case '8': //Note Off (*many midi files just use a NoteOn with vel=0 instead of a Note Off message) 								
+				if (running) note = midiByte & 0xFF; //use the "running status" byte that was already read
+				else note = pointer.next() & 0xFF;
 				vel = pointer.next() & 0xFF;
-				notes_ar.add(total_ticks);
-				notes_ar.add(0); //add 0 as code for Note Off
-				notes_ar.add(channel); 
-				notes_ar.add(note);
-				notes_ar.add(vel);
-				if (channel == 1) {
-					System.out.println("-- Note Off n=" + note + " ch=" + channel + " t=" + total_ticks); 
+				
+				for (int i=0; i < chanTracks.size(); i++) {
+					if (chanTracks.get(i).channel == channel) {
+						found = true;						
+						chanTracks.get(i).notes.add(note);
+						chanTracks.get(i).notes.add(vel);
+						chanTracks.get(i).notes.add(total_ticks);
+						break;
+					}
 				}				
+				if (!found) { //could only happen if somehow there was no instrument assigned to the channel 
+					System.out.println("readMidi() NoteOff: no chanTrack found");
+					return false; //TODO need to alert user there's a problem with the midi file, trash anything created up to here
+				}				
+				//System.out.println("-- Note Off n=" + note + " ch=" + channel + " t=" + total_ticks); 								
 				break;
-			case '9': //Note On
-				chan_hex = String.valueOf(char2);					
-				channel = Integer.parseInt(chan_hex, 16) + 1;				
-				note = pointer.next() & 0xFF;
-				vel = pointer.next() & 0xFF; //volume
-				notes_ar.add(total_ticks);
-				notes_ar.add(1); //add 1 as code for Note On
-				notes_ar.add(channel); 
-				notes_ar.add(note);
-				notes_ar.add(vel);
-				if (channel == 1) {
-					
-				}
-				System.out.println("++ Note On n=" + note + " ch=" + channel + " t=" + total_ticks); 
+			case '9': //Note On								
+				if (running) note = midiByte & 0xFF;
+				else note = pointer.next() & 0xFF;
+				vel = pointer.next() & 0xFF; //velocity. in midi sometimes volume, sometimes triggers alternate	samples			
+				
+				for (int i=0; i < chanTracks.size(); i++) {
+					if (chanTracks.get(i).channel == channel) {
+						found = true;						
+						chanTracks.get(i).notes.add(note);
+						chanTracks.get(i).notes.add(vel);
+						chanTracks.get(i).notes.add(total_ticks);
+						break;
+					}
+				}				
+				if (!found) { //could only happen if somehow there was no instrument assigned to the channel 
+					System.out.println("readMidi() NoteOn: no chanTrack found");
+					return false; //TODO need to alert user there's a problem with the midi file
+				}					
+				System.out.println("++ Note On n=" + note + " ch=" + channel + " vel=" + vel + " t=" + total_ticks); 								
 				break;
 			case 'A': //Note Aftertouch
-				pointer.next(); //note
+				if (running) {} //not using so just move pointer to keep reading frame right
+				else pointer.next(); //note
 				pointer.next(); //pressure
-				//System.out.println("A Note Aftertouch");
+				System.out.println("A Note Aftertouch");
 				break;
-			case 'B': //Controller. for things like main volume 7 (0x07), balance 8 (0x08), pan 10 (0x0A)
-				int ctrl = pointer.next() & 0xFF; //controller type				
+			case 'B': //Controller. See list. many things like main volume 7 (0x07), balance 8 (0x08), pan 10 (0x0A)
+				int ctrl; //controller type	code
+				if (running) ctrl = midiByte & 0xFF;
+				else ctrl = pointer.next() & 0xFF; 			
 				int value = pointer.next() & 0xFF; //value 0-127
-				if (ctrl == 10) { //a panning message
-					pan = value;
-					System.out.println("******PAN MESSAGE****** " + pan);
-				}
-				//System.out.println("B Controller");
+				for (int i=0; i < chanTracks.size(); i++) {
+					if (chanTracks.get(i).channel == channel) {
+						found = true;	
+						if (ctrl == 7) { //master volume. Should only be set once in a proper midi file
+							chanTracks.get(i).mstrVol = value;
+							System.out.println("master volume set: " + value + " at tick: " + total_ticks);
+						}
+						if (ctrl == 11) { //expression volume, for dynamic volume changes that can happen while notes play
+							volumeBend(i, value, total_ticks);
+						}
+						if (ctrl == 8 || ctrl == 10) { //dynamic balance or pan message. treating both the same
+							panBend(i, value, total_ticks);
+						}
+						break;
+					}
+				}				
+				//System.out.println("B Controller: ch=" + channel + " cc# " + ctrl + " val " + value);				
 				break;
-			case 'C': //Program Change ***** Instrument info ******
-				chan_hex = String.valueOf(char2);				
-				channel = Integer.parseInt(chan_hex, 16) + 1;
-				int instmt_num = pointer.next() & 0xFF; //MIDI instrument code				
+			case 'C': //Program Change ** Instrument assignment ** - making assumption here that this signals start of a new channel/track			
+				int instmt_num; //MIDI instrument code # 0-127
+				if (running) instmt_num = midiByte & 0xFF;
+				else instmt_num = pointer.next() & 0xFF; 		
+				ChanTrack chanTrack = new ChanTrack(); //store each midi channel's data separately in custom ChanTrack object
+				chanTrack.channel = channel;
+				chanTracks.add(chanTrack);				
+				setupTrack(song, channel, instmt_num);	//set up a dbs song track
 				System.out.println("C Program Change ch=" + channel + " instmt_num: " + instmt_num);				
-				setupTrack(song, channel, instmt_num);				
 				break;
 			case 'D':
-				pointer.next(); //pressure
-				//System.out.println("D Channel Aftertouch");
+				if (running) {}
+				else pointer.next(); //pressure
+				System.out.println("D Channel Aftertouch");
 				break;
-			case 'E': //Pitch Bend - 14 bit value constructed from 2 bytes
-				chan_hex = String.valueOf(char2);				
-				channel = Integer.parseInt(chan_hex, 16) + 1;
-				byte lsb = pointer.next(); //least significant bits. take lower 7
-				byte msb = pointer.next(); //most significant bits. take lower 7
-				pb_curr = 0; //clear all bits
-				pb_curr = (msb & 0xFF) << 7 | (lsb & 0xFF); //shift most signif. 7 bits left & concatenate the lsb's at end
-				
-				if (channel == 1) {
-					System.out.println("pb " + pb_curr + " t=" + total_ticks);
-				}
-				
-				//find and store the inflection points of the pitch bend data
-				boolean found = false; //flag for whether a pbPt already exists for the channel
-				for (int i=0; i < pbPts.size(); i++) {
-					if (pbPts.get(i).channel == channel) { //make sure looking at correct channel
-						
-						//i will run 0 -> 15 for the channels 1 -> 16
-						//check if the just previous pbPt has the same value as the last inflection point
-						//this is the case when bend value hasn't changed, maybe for quite some time
-						//there needs to be another inflection point recorded if 
-						
-						int endIndex = bendLists.get(i).size() - 2; //index of last inflection point value
-						prevInfPt = bendLists.get(i).get(endIndex);
-						
-						
-						if (pbPts.get(i).direction == 0) { //then new, need to determine direction
-							
-							if (pb_curr > pbPts.get(i).value) {
-								pbPts.get(i).direction = 1;
-							}
-							else if (pb_curr < pbPts.get(i).value) {
-								pbPts.get(i).direction = -1;
-							}
-							
-							pbPts.get(i).value = pb_curr; //"walk" the points
-							System.out.println("initial direction set: " + pbPts.get(i).direction);
-						}
-						else if (pbPts.get(i).direction == 1) { //bending up
-							if (pb_curr < pbPts.get(i).value) { //inflection point - going back down
-								pbPts.get(i).direction = -1;
-								pbPts.get(i).value = pb_curr;
-								System.out.println("inflection up to down");
-							}							
-						}
-						else if (pbPts.get(i).direction == -1) { //bending down
-							if (pb_curr > pbPts.get(i).value) { //inflection point - going back down
-								pbPts.get(i).direction = 1;
-								pbPts.get(i).value = pb_curr;
-								System.out.println("inflection down to up");
-							}	
-						}
-						
-						found = true;
+			case 'E': //Pitch Bend - 14 bit value constructed from 2 bytes				
+				byte lsb; //least significant bits. take lower 7
+				if (running) lsb = midiByte;
+				else lsb = pointer.next(); 
+				byte msb = pointer.next(); //most significant bits. take lower 7				
+				currPbVal = 0; //clear all bits
+				currPbVal = (msb & 0xFF) << 7 | (lsb & 0xFF); //shift most signif. 7 bits left & concatenate the lsb's at end						
+				for (int i=0; i < chanTracks.size(); i++) {
+					if (chanTracks.get(i).channel == channel) {
+						found = true;	
+						pitchBend(i, currPbVal, total_ticks);
 						break;
 					}
 				}
-				
-				if (!found) { //first time channel has come up, create a bendList and PbPoint object & add to list
-					PbPoint pbPt = new PbPoint();
-					pbPt.channel = channel;
-					pbPt.value = pb_curr;
-					pbPt.ticks = total_ticks;
-					pbPts.add(pbPt);
-										
-					List<Integer> bendList = new ArrayList<Integer>(); //holds each bend target point in value|time pairs
-					bendList.add(pbPt.value); //the initial pitch bend value for the track
-					bendList.add(pbPt.ticks);					
-					bendLists.add(bendList);
-					
-					System.out.println("created new pbPt " + channel);
-				}
-				
-										
-				break;
+				if (!found) { //could only happen if somehow there was no instrument assigned to the channel 
+					System.out.println("readMidi() PitchBend: no chanTrack found");
+					return false; //TODO need to alert user there's a problem with the midi file, trash anything created up to here
+				}					
+				break; 
 			case 'F': //System-wide messages
 				//System.out.println("F Sysex or Meta Event");
 				
@@ -593,6 +672,9 @@ public class Midi {
 									double ppqn_dbl = (double) ppqn;
 									tickms = (tempo_dbl/ppqn_dbl)/1000;	
 									
+									//
+									
+									
 									//convert tempo to standard BPM value used in DittyBot dbs file format
 									double micspersec = 1000000;
 									song.tempo = (micspersec/tempo_dbl) * 60;									
@@ -709,19 +791,437 @@ public class Midi {
 		
 	}
 	
-	public class PbPoint { //convenience class for a pitch bend
+	private int msecToTicks(double msecs) { //returns #ticks equivalent to the msec value		
+		int ticks = -1;
 		
-		int channel;
-		int value;		
-		int ticks;
-		//boolean isNew = true; //
-		int direction = 0; //0 when created, 1 when bending higher, -1 when bending lower
+		if (tickms != -1) {
+			double dticks = msecs/tickms + 0.5;
+			ticks = (int) dticks;
+		}
+		else {
+			System.out.println("problem in msecToTicks(). tickms has not been set"); //TODO should not be possible, but handle error
+		}		
+		
+		return ticks;
+	}
+	
+	private void pitchBend(int i, int currPbVal, int total_ticks) { //convert midi pitch bend messages into a set of linear inflection point targets
+		
+		int tickThld = msecToTicks(pbThldMs);
+		
+		//if this is the 1st bend data point just add it to bend list
+		if (chanTracks.get(i).bendList.isEmpty()) {			
+			chanTracks.get(i).bendList.add(currPbVal);
+			chanTracks.get(i).bendList.add(total_ticks);
+			
+			chanTracks.get(i).pbPt.value = currPbVal;
+			chanTracks.get(i).pbPt.ticks = total_ticks;
+		}
+		else {
+			
+			boolean thldFlag = false; //set true if either the time or value threshold exceeded 
+			
+			int dPb = currPbVal - chanTracks.get(i).pbPt.value; //previous value
+			int dT = total_ticks - chanTracks.get(i).pbPt.ticks;
+			
+			//check whether exceed tick threshold to find when pitch bend value "flatlines" at same value for some time
+			if (dT >= tickThld) {
+				
+				thldFlag = true; //set flag to skip bend direction analysis
+				
+				//need to add both endpoints of the "flatline" to the bendList for that track
+				
+				//make sure duplicate inflection points aren't stored
+				int lastIndex = chanTracks.get(i).bendList.size() - 2; //stride 2 value|time pairs
+				int lastValue = chanTracks.get(i).bendList.get(lastIndex);
+				int lastTime = chanTracks.get(i).bendList.get(lastIndex+1);
+				if (chanTracks.get(i).pbPt.value == lastValue && chanTracks.get(i).pbPt.ticks == lastTime) { //then the same point was added elsewhere								 
+					//System.out.println("flat inflection point already added " + lastIndex + ":" + lastValue + "|" + lastTime);
+				}
+				else {
+					//add the left endpoint of the "flatline"
+					chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.value);
+					chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.ticks);															
+				}
+				
+				//create the right endpoint of the "flatline" - keep the same value pbPt already has
+				chanTracks.get(i).pbPt.ticks = total_ticks; //but walk it to the new time
+				chanTracks.get(i).pbPt.direction = 0; //reset any direction info
+				
+				chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.value); //create new inflection point with same bend value as previous point
+				chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.ticks); //at the current time
+										
+				if (chanTracks.get(i).channel == 1) { //just for testing. remove 								
+					int index1 = chanTracks.get(i).bendList.size() - 4; //two points, stride 2
+					int index2 = index1 + 2;
+					int lval = chanTracks.get(i).bendList.get(index1);
+					int lticks = chanTracks.get(i).bendList.get(index1+1);
+					int rval = chanTracks.get(i).bendList.get(index2);
+					int rticks = chanTracks.get(i).bendList.get(index2+1);
+					//System.out.println("FLATLINE inf. pts. L " + index1 + ":" + lval + "|" + lticks + " R " + index2 +":" + rval + "|" + rticks );
+				}
+										
+			}
+			
+			//check if the new bend value is a "big jump" usually indicating the start of a new set of note-bending						
+			if (Math.abs(dPb) >= pbValThld) {
+				
+				thldFlag = true; //set flag to skip bend direction analysis
+				
+				//make previous pbPt an inflection point - make sure not a duplicate
+				int lastIndex = chanTracks.get(i).bendList.size() - 2; //stride 2 value|time pairs
+				int lastValue = chanTracks.get(i).bendList.get(lastIndex);
+				int lastTime = chanTracks.get(i).bendList.get(lastIndex+1);
+				if (chanTracks.get(i).pbPt.value == lastValue && chanTracks.get(i).pbPt.ticks == lastTime) { //then the same point was added elsewhere								 
+					//System.out.println("jump inflection point already added "  + lastIndex + ":" + lastValue + "|" + lastTime);
+				}
+				else {	
+					chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.value); //the bend value just prior to the current bend value message
+					chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.ticks); 																	
+				}
+				
+				//and the latest point should also be recorded as an inflection point
+				chanTracks.get(i).bendList.add(currPbVal);
+				chanTracks.get(i).bendList.add(total_ticks);								
+				
+				chanTracks.get(i).pbPt.direction = 0; //unset the direction
+				
+				if (chanTracks.get(i).channel == 1) { //just for testing 								
+					int index1 = chanTracks.get(i).bendList.size() - 4;
+					int index2 = index1 + 2;
+					int aVal = chanTracks.get(i).bendList.get(index1);
+					int aTicks = chanTracks.get(i).bendList.get(index1+1);
+					int bVal = chanTracks.get(i).bendList.get(index2);
+					int bTicks = chanTracks.get(i).bendList.get(index2+1);
+					//System.out.println("JUMP  inf. pts. A " + index1 + ":" + aVal + "|" + aTicks + " B " + index2 + ":" + bVal + "|" + bTicks );
+				}								
+			}
+			
+			//if neither threshold above was exceeded, check for directional changes of bend values
+			if (!thldFlag) {
+				
+				if (chanTracks.get(i).pbPt.direction == 0) { //not yet set, need to determine direction
+					
+					if (currPbVal > chanTracks.get(i).pbPt.value) {
+						chanTracks.get(i).pbPt.direction = 1; //bending higher
+					}
+					else if (currPbVal < chanTracks.get(i).pbPt.value) {
+						chanTracks.get(i).pbPt.direction = -1; //bending lower
+					}								
+					
+					//System.out.println("initial direction set: " + chanTracks.get(i).pbPt.direction);
+				}
+				else if (chanTracks.get(i).pbPt.direction == 1) { //bending up
+					if (currPbVal < chanTracks.get(i).pbPt.value) { //inflection point - going back down
+						chanTracks.get(i).pbPt.direction = -1;
+						
+						chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.value); 
+						chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.ticks);
+																
+						if (chanTracks.get(i).channel == 1) { //just for testing 								
+							int index = chanTracks.get(i).bendList.size() - 2;
+							int val = chanTracks.get(i).bendList.get(index);
+							int ticks = chanTracks.get(i).bendList.get(index+1);										
+							//System.out.println("!!! Up to Down " + index + ":" + val + "|" + ticks);
+						}										
+					}							
+				}
+				else if (chanTracks.get(i).pbPt.direction == -1) { //bending down
+					if (currPbVal > chanTracks.get(i).pbPt.value) { //inflection point - going back up
+						chanTracks.get(i).pbPt.direction = 1;
+						
+						chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.value); 
+						chanTracks.get(i).bendList.add(chanTracks.get(i).pbPt.ticks);
+						
+						if (chanTracks.get(i).channel == 1) { //just for testing 								
+							int index = chanTracks.get(i).bendList.size() - 2;
+							int val = chanTracks.get(i).bendList.get(index);
+							int ticks = chanTracks.get(i).bendList.get(index+1);										
+							//System.out.println("!!! Down to Up " + index + ":" + val + "|" + ticks);
+						}	
+					}	
+				}								
+			}							
+			
+			//set the pbPt to current value to "walk" the bend values
+			chanTracks.get(i).pbPt.value = currPbVal;
+			chanTracks.get(i).pbPt.ticks = total_ticks;
+		}
+		
+	}
+	
+	private void volumeBend(int i, int value, int total_ticks) { //midi CC11. works the same as pitchbend(), see it for comments
+		
+		int tickThld = msecToTicks(volThldMs);		
+		
+		if (chanTracks.get(i).volList.isEmpty()) { //list is empty, just add the point
+			chanTracks.get(i).volList.add(value);
+			chanTracks.get(i).volList.add(total_ticks);
+			
+			chanTracks.get(i).volPt.value = value;
+			chanTracks.get(i).volPt.ticks = total_ticks;
+		}
+		else {
+			
+			boolean thldFlag = false; //set true if either the time or value threshold exceeded 
+			
+			int dVol = value - chanTracks.get(i).volPt.value; //previous value
+			int dT = total_ticks - chanTracks.get(i).volPt.ticks;			
+			
+			if (dT >= tickThld) {
+				
+				thldFlag = true; //set flag to skip direction analysis				
+				
+				int lastIndex = chanTracks.get(i).volList.size() - 2; //stride 2 value|time pairs
+				int lastValue = chanTracks.get(i).volList.get(lastIndex);
+				int lastTime = chanTracks.get(i).volList.get(lastIndex+1);
+				if (chanTracks.get(i).volPt.value == lastValue && chanTracks.get(i).volPt.ticks == lastTime) { //then the same point was added elsewhere								 
+					System.out.println("volumeBend() flat inflection point already added " + lastIndex + ":" + lastValue + "|" + lastTime);
+				}
+				else {					
+					chanTracks.get(i).volList.add(chanTracks.get(i).volPt.value);
+					chanTracks.get(i).volList.add(chanTracks.get(i).volPt.ticks);															
+				}				
+				
+				chanTracks.get(i).volPt.ticks = total_ticks; 
+				chanTracks.get(i).volPt.direction = 0; 
+				
+				chanTracks.get(i).volList.add(chanTracks.get(i).volPt.value); //create new inflection point with same bend value as previous point
+				chanTracks.get(i).volList.add(chanTracks.get(i).volPt.ticks); //at the current time
+										
+				if (chanTracks.get(i).channel == 1) { //just for testing. remove 								
+					int index1 = chanTracks.get(i).volList.size() - 4; //two points, stride 2
+					int index2 = index1 + 2;
+					int lval = chanTracks.get(i).volList.get(index1);
+					int lticks = chanTracks.get(i).volList.get(index1+1);
+					int rval = chanTracks.get(i).volList.get(index2);
+					int rticks = chanTracks.get(i).volList.get(index2+1);
+					System.out.println("volumeBend() FLATLINE inf. pts. L " + index1 + ":" + lval + "|" + lticks + " R " + index2 +":" + rval + "|" + rticks );
+				}
+										
+			}			
+								
+			if (Math.abs(dVol) >= volValThld) {
+				
+				thldFlag = true; 				
+				
+				int lastIndex = chanTracks.get(i).volList.size() - 2; //stride 2 value|time pairs
+				int lastValue = chanTracks.get(i).volList.get(lastIndex);
+				int lastTime = chanTracks.get(i).volList.get(lastIndex+1);
+				if (chanTracks.get(i).volPt.value == lastValue && chanTracks.get(i).volPt.ticks == lastTime) { //then the same point was added elsewhere								 
+					System.out.println("volumeBend() jump inflection point already added "  + lastIndex + ":" + lastValue + "|" + lastTime);
+				}
+				else {	
+					chanTracks.get(i).volList.add(chanTracks.get(i).volPt.value); 
+					chanTracks.get(i).volList.add(chanTracks.get(i).volPt.ticks); 																	
+				}				
+				
+				chanTracks.get(i).volList.add(value);
+				chanTracks.get(i).volList.add(total_ticks);								
+				
+				chanTracks.get(i).volPt.direction = 0; //unset the direction
+				
+				if (chanTracks.get(i).channel == 1) { //just for testing 								
+					int index1 = chanTracks.get(i).volList.size() - 4;
+					int index2 = index1 + 2;
+					int aVal = chanTracks.get(i).volList.get(index1);
+					int aTicks = chanTracks.get(i).volList.get(index1+1);
+					int bVal = chanTracks.get(i).volList.get(index2);
+					int bTicks = chanTracks.get(i).volList.get(index2+1);
+					System.out.println("volumeBend() JUMP  inf. pts. A " + index1 + ":" + aVal + "|" + aTicks + " B " + index2 + ":" + bVal + "|" + bTicks );
+				}								
+			}
+			
+			//if neither threshold above was exceeded, check for directional changes
+			if (!thldFlag) {
+				
+				if (chanTracks.get(i).volPt.direction == 0) { //not yet set, need to determine direction
+					
+					if (value > chanTracks.get(i).volPt.value) {
+						chanTracks.get(i).volPt.direction = 1; //bending higher
+					}
+					else if (value < chanTracks.get(i).volPt.value) {
+						chanTracks.get(i).volPt.direction = -1; //bending lower
+					}								
+					
+					System.out.println("volumeBend() initial direction set: " + chanTracks.get(i).volPt.direction);
+				}
+				else if (chanTracks.get(i).volPt.direction == 1) { //bending up
+					if (value < chanTracks.get(i).volPt.value) { //inflection point - going back down
+						chanTracks.get(i).volPt.direction = -1;
+						
+						chanTracks.get(i).volList.add(chanTracks.get(i).volPt.value); 
+						chanTracks.get(i).volList.add(chanTracks.get(i).volPt.ticks);
+																
+						if (chanTracks.get(i).channel == 1) { //just for testing 								
+							int index = chanTracks.get(i).volList.size() - 2;
+							int val = chanTracks.get(i).volList.get(index);
+							int ticks = chanTracks.get(i).volList.get(index+1);										
+							System.out.println("!!! volumeBend() Up to Down " + index + ":" + val + "|" + ticks);
+						}										
+					}							
+				}
+				else if (chanTracks.get(i).volPt.direction == -1) { //bending down
+					if (value > chanTracks.get(i).volPt.value) { //inflection point - going back up
+						chanTracks.get(i).volPt.direction = 1;
+						
+						chanTracks.get(i).volList.add(chanTracks.get(i).volPt.value); 
+						chanTracks.get(i).volList.add(chanTracks.get(i).volPt.ticks);
+						
+						if (chanTracks.get(i).channel == 1) { //just for testing 								
+							int index = chanTracks.get(i).volList.size() - 2;
+							int val = chanTracks.get(i).volList.get(index);
+							int ticks = chanTracks.get(i).volList.get(index+1);										
+							System.out.println("!!! volumeBend() Down to Up " + index + ":" + val + "|" + ticks);
+						}	
+					}	
+				}								
+			}							
+			
+			//set to current value to "walk" the data
+			chanTracks.get(i).volPt.value = value;
+			chanTracks.get(i).volPt.ticks = total_ticks;
+		}
+	}
+	
+	private void panBend(int i, int value, int total_ticks) { //midi CC8 or CC10 
+		System.out.println("panBend(): " + i + " " + value + " " + total_ticks);
+		int tickThld = msecToTicks(panThldMs);		
+		
+		if (chanTracks.get(i).panList.isEmpty()) {
+			chanTracks.get(i).panList.add(value);
+			chanTracks.get(i).panList.add(total_ticks);
+			
+			chanTracks.get(i).panPt.value = value;
+			chanTracks.get(i).panPt.ticks = total_ticks;
+		}
+		else {
+			
+			boolean thldFlag = false; //set true if either the time or value threshold exceeded 
+			
+			int dPan = value - chanTracks.get(i).panPt.value; //previous value
+			int dT = total_ticks - chanTracks.get(i).panPt.ticks;			
+			
+			if (dT >= tickThld) {
+				
+				thldFlag = true; //set flag to skip direction analysis				
+				
+				int lastIndex = chanTracks.get(i).panList.size() - 2; //stride 2 value|time pairs
+				int lastValue = chanTracks.get(i).panList.get(lastIndex);
+				int lastTime = chanTracks.get(i).panList.get(lastIndex+1);
+				if (chanTracks.get(i).panPt.value == lastValue && chanTracks.get(i).panPt.ticks == lastTime) { //then the same point was added elsewhere								 
+					System.out.println("panBend() flat inflection point already added " + lastIndex + ":" + lastValue + "|" + lastTime);
+				}
+				else {					
+					chanTracks.get(i).panList.add(chanTracks.get(i).panPt.value);
+					chanTracks.get(i).panList.add(chanTracks.get(i).panPt.ticks);															
+				}				
+				
+				chanTracks.get(i).panPt.ticks = total_ticks; 
+				chanTracks.get(i).panPt.direction = 0; 
+				
+				chanTracks.get(i).panList.add(chanTracks.get(i).panPt.value); //create new inflection point with same bend value as previous point
+				chanTracks.get(i).panList.add(chanTracks.get(i).panPt.ticks); //at the current time
+										
+				if (chanTracks.get(i).channel == 1) { //just for testing. remove 								
+					int index1 = chanTracks.get(i).panList.size() - 4; //two points, stride 2
+					int index2 = index1 + 2;
+					int lval = chanTracks.get(i).panList.get(index1);
+					int lticks = chanTracks.get(i).panList.get(index1+1);
+					int rval = chanTracks.get(i).panList.get(index2);
+					int rticks = chanTracks.get(i).panList.get(index2+1);
+					System.out.println("panBend() FLATLINE inf. pts. L " + index1 + ":" + lval + "|" + lticks + " R " + index2 +":" + rval + "|" + rticks );
+				}
+										
+			}			
+								
+			if (Math.abs(dPan) >= panValThld) {
+				
+				thldFlag = true; 				
+				
+				int lastIndex = chanTracks.get(i).panList.size() - 2; //stride 2 value|time pairs
+				int lastValue = chanTracks.get(i).panList.get(lastIndex);
+				int lastTime = chanTracks.get(i).panList.get(lastIndex+1);
+				if (chanTracks.get(i).panPt.value == lastValue && chanTracks.get(i).panPt.ticks == lastTime) { //then the same point was added elsewhere								 
+					System.out.println("panBend() jump inflection point already added "  + lastIndex + ":" + lastValue + "|" + lastTime);
+				}
+				else {	
+					chanTracks.get(i).panList.add(chanTracks.get(i).panPt.value); 
+					chanTracks.get(i).panList.add(chanTracks.get(i).panPt.ticks); 																	
+				}				
+				
+				chanTracks.get(i).panList.add(value);
+				chanTracks.get(i).panList.add(total_ticks);								
+				
+				chanTracks.get(i).panPt.direction = 0; //unset the direction
+				
+				if (chanTracks.get(i).channel == 1) { //just for testing 								
+					int index1 = chanTracks.get(i).panList.size() - 4;
+					int index2 = index1 + 2;
+					int aVal = chanTracks.get(i).panList.get(index1);
+					int aTicks = chanTracks.get(i).panList.get(index1+1);
+					int bVal = chanTracks.get(i).panList.get(index2);
+					int bTicks = chanTracks.get(i).panList.get(index2+1);
+					System.out.println("panBend() JUMP  inf. pts. A " + index1 + ":" + aVal + "|" + aTicks + " B " + index2 + ":" + bVal + "|" + bTicks );
+				}								
+			}
+			
+			//if neither threshold above was exceeded, check for directional changes
+			if (!thldFlag) {
+				
+				if (chanTracks.get(i).panPt.direction == 0) { //not yet set, need to determine direction
+					
+					if (value > chanTracks.get(i).panPt.value) {
+						chanTracks.get(i).panPt.direction = 1; //bending higher
+					}
+					else if (value < chanTracks.get(i).panPt.value) {
+						chanTracks.get(i).panPt.direction = -1; //bending lower
+					}								
+					
+					System.out.println("volumeBend() initial direction set: " + chanTracks.get(i).panPt.direction);
+				}
+				else if (chanTracks.get(i).panPt.direction == 1) { //bending up
+					if (value < chanTracks.get(i).panPt.value) { //inflection point - going back down
+						chanTracks.get(i).panPt.direction = -1;
+						
+						chanTracks.get(i).panList.add(chanTracks.get(i).panPt.value); 
+						chanTracks.get(i).panList.add(chanTracks.get(i).panPt.ticks);
+																
+						if (chanTracks.get(i).channel == 1) { //just for testing 								
+							int index = chanTracks.get(i).panList.size() - 2;
+							int val = chanTracks.get(i).panList.get(index);
+							int ticks = chanTracks.get(i).panList.get(index+1);										
+							System.out.println("!!! panBend() Up to Down " + index + ":" + val + "|" + ticks);
+						}										
+					}							
+				}
+				else if (chanTracks.get(i).panPt.direction == -1) { //bending down
+					if (value > chanTracks.get(i).panPt.value) { //inflection point - going back up
+						chanTracks.get(i).panPt.direction = 1;
+						
+						chanTracks.get(i).panList.add(chanTracks.get(i).panPt.value); 
+						chanTracks.get(i).panList.add(chanTracks.get(i).panPt.ticks);
+						
+						if (chanTracks.get(i).channel == 1) { //just for testing 								
+							int index = chanTracks.get(i).panList.size() - 2;
+							int val = chanTracks.get(i).panList.get(index);
+							int ticks = chanTracks.get(i).panList.get(index+1);										
+							System.out.println("!!! panBend() Down to Up " + index + ":" + val + "|" + ticks);
+						}	
+					}	
+				}								
+			}							
+			
+			//set to current value to "walk" the data
+			chanTracks.get(i).panPt.value = value;
+			chanTracks.get(i).panPt.ticks = total_ticks;
+		}
 	}
 	
 	private void setupTrack(Song song, int channel, int instmt_num) { //called from readMidi() in 'C' Program Change, tracks added with instrument
 		System.out.println("setupTrack() ch=" + channel + " instmt_num " + instmt_num);						
 		
-		if (channel != 10) { //channel 10 is drums in MIDI
+		if (channel != 10) { //channel 10 is drums in MIDI			
 			
 			//int trkSize_px = (int) (gv.TRKSIZE_DP * context.getResources().getDisplayMetrics().density + 0.5f);
 			//int ledSize_px = (int) (gv.LEDSIZE_DP * context.getResources().getDisplayMetrics().density + 0.5f);
@@ -901,14 +1401,270 @@ public class Midi {
 		
 	}
 	
-	public boolean formatNotes(Song song, List<Integer> notes_ar) { //turns MIDI On/Off mote msgs into dbs start/note/dur format
+	public boolean formatNotes(Song song) {
+		System.out.println("formatNotes()");
+		
+		boolean status = false;
+		
+		int note;
+		float velocity;
+		//int volume;
+		
+		int onticks;
+		int offticks;
+		int durticks;
+		
+		int i_idx = -1; //instrument index to match non-drum chanTracks to corresponding song.tracks
+		//this is a slightly fudgey thing. midi using channel 10 for drum tracks means my chanTracks
+		//will index correlate with song.tracks until a drum track is hit & then are 1 off. this accounts for it
+		
+		//first populate the song.tracks.notes with basic note data, static note volume, no note bends or pan bends
+		for (int i=0; i < chanTracks.size(); i++) {
+			System.out.println("initial processing of chanTrack: " + i);
+			
+			if (chanTracks.get(i).channel != 10) { //midi channel 10 is for drum tracks
+				
+				i_idx += 1; //an instrument track, so advance the instrument index. will correlate with song.track indices
+				
+				while (chanTracks.get(i).notes.size() > 0) {
+					
+					note = chanTracks.get(i).notes.get(0);
+					velocity = chanTracks.get(i).notes.get(1);
+					onticks = chanTracks.get(i).notes.get(2);
+					
+					//discard values as write to song.track.notes so don't duplicate data in RAM
+					if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(0); //pop off the Note On value
+					if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(0); //pop off the velocity value
+					if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(0); //pop off the ticks value
+					
+					System.out.println("Note On: " + note + " " + velocity + " " + onticks);
+					
+					//seek ahead to find same note value (because midi streams note On/Off pairs)
+					for (int j=0; j < chanTracks.get(i).notes.size(); j+=3) {
+						if (chanTracks.get(i).notes.get(j) == note) { //then found the Note Off of the note 						
+							
+							offticks = chanTracks.get(i).notes.get(j+2);
+							durticks = offticks - onticks;
+							
+							System.out.println("Note Off: " + note + " " + chanTracks.get(i).notes.get(j+1) + " " + offticks);
+							
+							//add the static note fields to the song.track.notes list - start|note|duration
+							song.tracks.get(i_idx).notes.add(onticks); //add as ticks now, will change to msecs later
+							song.tracks.get(i_idx).notes.add(note); 
+							song.tracks.get(i_idx).notes.add(durticks);
+							
+							if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(j); //pop off the Note Off value
+							if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(j); //pop off the velocity value
+							if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(j); //pop off the ticks value
+							else System.out.println("chanTrack: " + i + " notes.size() is now zero"); //TODO for testing, remove	
+							
+							//set initial volume using velocity as % of master volume														
+							if (chanTracks.get(i).mstrVol == 0) chanTracks.get(i).mstrVol = 63; //make sure master volume isn't zero (some midi files do weird things)
+							song.tracks.get(i_idx).notes.add(1); //#vol pts field. always at least 1 volume value|time pair per note. change if dynamic volume
+							float mv = chanTracks.get(i).mstrVol;
+							float pv = velocity/127.0f * mv + 0.5f; //midi volume is a 0-127 scale
+							song.tracks.get(i_idx).notes.add((int) pv); //initial volume value
+							song.tracks.get(i_idx).notes.add(0); //initial volume is always at time=0
+							
+							//set initial pan to center
+							song.tracks.get(i_idx).notes.add(1); //#pan pts field. always at least 1 pan value|time pair per note
+							song.tracks.get(i_idx).notes.add(50); //pan 0=hard left -> 100=hard right
+							song.tracks.get(i_idx).notes.add(0); //initial pan is always at time=0
+														
+							//set initial bends to none
+							song.tracks.get(i_idx).notes.add(0); //unlike volume and pan, no initial bend value is required
+						}
+					}
+				}
+			}
+			else { //it's a drum track 
+				System.out.println("...it's a drum track");
+				//might out this to a formatDrum() to keep this readable. OR loop over the chanTracks from convert()			
+			}
+			
+			System.out.println("end initial processing pass chanTrack: " + i);
+			//add more traces here to see song.tracks.notes details
+			
+		} //end for loop initial processing pass
+		
+		
+		//OK now have the basic notes lists set up, Now need to insert any dynamic volume/pan/bend data	
+		
+		i_idx = -1; //reset the instrument index
+		for (int i=0; i < chanTracks.size(); i++) {
+			if (chanTracks.get(i).channel != 10) {
+				i_idx += 1;
+				
+				//process each note in song.track.notes added in step above
+				for (int j=0; j < song.tracks.get(i_idx).notes.size(); j+=10) { //start|note|dur|1|v|0|1|p|0|0 - how song.track.notes currently set up. stride 10
+					//dynamic volume first
+					if (chanTracks.get(i).volList.size() > 0) {
+						
+						//get a volume value at note start, either exact or interpolated between 2 values
+						
+						//first find closest dynamic volume pt. on or right before note start time
+						boolean found = false;
+						
+						//check for simplest case of a vol pt at same time as note start 
+						
+						
+						//then add all vol pts that fall within duration of note
+						
+						//
+						
+					}
+					
+					//then pan, using the #vol pts field to keep reading frame right
+					if (chanTracks.get(i).panList.size() > 0) {
+						
+					}
+					
+					//then bends, using both the #vol pts and #pan pts fields to keep frame
+					if (chanTracks.get(i).bendList.size() > 0) {
+						
+					}
+				}			
+				
+			} //else it's a drum track			
+		}
+		
+		
+		
+		
+		status = true;
+		return status;
+	}
+	
+	public boolean formatNotesOLD2(Song song) { //deeply nested
+		System.out.println("formatNotes()");	
+		
+		boolean status = false;
+		
+		int note;
+		float velocity;
+		int volume;
+		
+		int onticks;
+		int offticks;
+		int durticks;			
+		
+		for (int i=0; i < chanTracks.size(); i++) { //Process each track. the chanTracks indices match the Song.tracks indices
+			System.out.println("processing chanTrack: " + i);
+			
+			int volPtr = 1; //pointer to walk along the chanTrack.volList. set to 1 to first get the time of the value|time pairs
+					
+			if (chanTracks.get(i).channel != 10) { //midi channel 10 is for drum tracks
+				
+				while (chanTracks.get(i).notes.size() > 0) { 
+					note = chanTracks.get(i).notes.get(0);
+					velocity = chanTracks.get(i).notes.get(1);
+					onticks = chanTracks.get(i).notes.get(2);
+					
+					//discard values as write to song.track.notes so don't duplicate data in RAM
+					if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(0); //pop off the Note On value
+					if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(0); //pop off the velocity value
+					if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(0); //pop off the ticks value
+					
+					//seek ahead to find same note value (because midi streams note On/Off pairs)
+					for (int j=0; j < chanTracks.get(i).notes.size(); j+=3) {
+						if (chanTracks.get(i).notes.get(j) == note) { //then found the Note Off of the note 
+							
+							offticks = chanTracks.get(i).notes.get(j+2);
+							durticks = offticks - onticks;
+							
+							//add the static note fields to the song.track.notes list - start|note|duration
+							song.tracks.get(i).notes.add(onticks); //add as ticks now, will change to msecs later
+							song.tracks.get(i).notes.add(note); 
+							song.tracks.get(i).notes.add(durticks);
+							
+							if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(j); //pop off the Note Off value
+							if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(j); //pop off the velocity value
+							if (chanTracks.get(i).notes.size() > 0) chanTracks.get(i).notes.remove(j); //pop off the ticks value
+							else System.out.println("chanTrack: " + i + " notes.size() is now zero"); //TODO for testing, remove
+							
+							//set initial volume using velocity as % of master volume														
+							if (chanTracks.get(i).mstrVol == 0) chanTracks.get(i).mstrVol = 63; //make sure master volume isn't zero (some midi files do weird things)
+							song.tracks.get(i).notes.add(1); //#vol pts field. always at least 1 volume value|time pair per note. change if dynamic volume
+							float mv = chanTracks.get(i).mstrVol;
+							float pv = velocity/127.0f * mv + 0.5f; //midi volume is a 0-127 scale
+							song.tracks.get(i).notes.add((int) pv); //initial volume value
+							song.tracks.get(i).notes.add(0); //initial volume is always at time=0
+							
+							//add any dynamic volume points - these supersede initial values set above
+							if (chanTracks.get(i).volList.size() > 0) { //skip it if empty
+								
+								//first find closest dynamic volume pt. on or right before note start time
+								boolean found = false;
+								while (chanTracks.get(i).volList.get(volPtr) <= onticks) {
+									
+									if (chanTracks.get(i).volList.get(volPtr) == onticks) { //check for easiest case of dyn vol pt at same time as note start
+										//replace the velocity volume above with the new volume
+										pv = chanTracks.get(i).volList.get(volPtr-1)/127.0f * mv + 0.5f; //as % of master volume
+										int vidx = song.tracks.get(i).notes.size()-2; //first volume value index
+										song.tracks.get(i).notes.set(vidx, (int)pv);
+										found = true;
+										break;
+									}
+									else volPtr+=2; //walking the time values of the volList
+									//!!!! need bounds checking so don't overrun array. Also
+								}
+								if (!found) {
+									//OK at this point no exact time match was found, and the dyn vol pt time is now greater than 
+									//the note start time. need to interpolate between last dyn vol pt that occurs before note start 
+									//and nearest dyn vol pt after note start
+									
+									//first check if the two vol pts have equal value. If so, no calculation needed
+									if (chanTracks.get(i).volList.get(volPtr-3) == chanTracks.get(i).volList.get(volPtr-1)) {
+										
+									}
+									else { //the two vol pts that straddle the note start time
+										
+									}
+								}
+								
+								//OK at this point need to find all possible dyn vol pts that fall within note duration
+								//the volPtr should be at first vol pt within note when hit this point
+								
+								//then need to find either an exact time match volume value at end of note, or do that same
+								//interpolate between straddled values as did for note start time
+								
+							}
+							
+							
+							//add any dynamic pan points
+							
+							//add any pitch bend points
+							
+							break; //breaks the loop seeking the Note Off when found
+						}
+						//if no Note Off match found, then the Note On data is just discarded. Shouldn't happen, but won't hang the while loop if does 
+					} //end inner for loop
+				} // end while loop
+				
+
+			}
+			else { //it's a midi drum track. Note values here equate to drum MIDI instrument numbers
+				System.out.println("formatNotes() processing a percussion track");
+			}
+			
+			
+			
+			//process every chanTracks.get(i).notes into dbs format
+			//all have to do is scan ahead for same note now as already sorted by channel
+		} //end for loop over chanTracks
+		
+		status = true;
+		return status;
+	}
+	
+	public boolean formatNotesOLD(Song song, int trackIndex, List<Integer> notes_ar) { //turns MIDI On/Off mote msgs into dbs start/note/dur format
 		System.out.println("formatNotes() " + notes_ar.size());
 		if (notes_ar.size() == 0) return true; //case when midi format=1 & 1st track is a "tempo map"
 		
 		boolean status = false;
 		
-		int trackIndex = song.tracks.size() - 1;
-		System.out.println("trackIndex " + trackIndex);
+		//int trackIndex = song.tracks.size() - 1;
+		//System.out.println("trackIndex " + trackIndex);
 		
 		int channel;
 		int note;
@@ -925,16 +1681,16 @@ public class Midi {
 		
 		int matched_notes = 0;
 		
-		for (int i=0; i < notes_ar.size(); i += 5) { //stride 5 ***TODO this will be 6 or more with pan
+		for (int i=0; i < notes_ar.size(); i += 5) { //stride 5 ***TODO this will be 6 or more with pan & bends
 			if (notes_ar.get(i+1) == 1) { // 1 = Note On
 				onticks = (double) notes_ar.get(i);
 				channel = notes_ar.get(i+2);
 				note = notes_ar.get(i+3);
 				volume = notes_ar.get(i+4);
 				
-				//seek ahead to find same channel, same note, with v=0. (can't be sure a Note Off is sent in every file) 
+				//seek ahead to find same channel, same note because if On next one must be off (a Note Off message is often not sent) 
 				for (int j = i+5; j < notes_ar.size(); j += 5) {
-					if (notes_ar.get(j+2) == channel && notes_ar.get(j+3) == note) { //thinking sufficient to just find same channel & same note
+					if (notes_ar.get(j+2) == channel && notes_ar.get(j+3) == note) { 
 						
 						ontime = onticks * tickms + 0.5; //for rounding
 						istart = (int) ontime;

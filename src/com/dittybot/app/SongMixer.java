@@ -13,11 +13,6 @@ import java.util.Locale;
 import org.puredata.core.PdBase;
 import org.puredata.core.PdListener;
 
-import com.dittybot.app.SongMixerOLD2.PromptRunnable;
-import com.dittybot.app.SongMixerOLD2.getMidiAsync;
-import com.dittybot.app.SongMixerOLD2.songLoad;
-import com.dittybot.app.SongMixerOLD2.songSave;
-
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
@@ -1056,7 +1051,7 @@ public class SongMixer extends Activity {
 		@Override
 		protected String doInBackground(String... params) {
 			
-			byte[] dbsf = new byte[4]; //DBSF magic seq as 1 byte ASCII chars to ID file as a DittyBot song file
+			byte[] dbsf = new byte[4]; //DBSF magic seq as 1 byte ASCII chars to ID file as a DittyBot Song File
 			dbsf[0] = 68; //D
 			dbsf[1] = 66; //B
 			dbsf[2] = 83; //S
@@ -1094,6 +1089,8 @@ public class SongMixer extends Activity {
 				
 				//8 bytes write tempo
 				out.writeDouble(song.tempo);
+				
+				
 				
 				
 				//------------- Track Data -----------------------------------------------
@@ -1762,7 +1759,7 @@ public class SongMixer extends Activity {
 		}
 
 		@Override
-			protected String doInBackground(String... params) {	
+		protected String doInBackground(String... params) {	
 			
 			song = new Song(); //re-initialize
 			
@@ -1796,58 +1793,23 @@ public class SongMixer extends Activity {
 			String midiFpath = gv.extStorPath + "/DittyBot/Midi/" + midiFname; 			
 			midi = new Midi(SongMixer.this, midiFpath);
 			
-			if(midi.preProcess()) { //open midi file, get header info & track data locations in file
-				System.out.println("**preProcess() done**");			
-				System.out.println("fileSize " + midi.fileSize);
-				System.out.println("format type: " + midi.format_type);
-				System.out.println("tracks found: " + midi.num_tracks);
-				System.out.println("time div: " + midi.ppqn);			
+			//and convert the midi file to dbs format
+			if (midi.convert(song)) {
+				midiOK = true;
+				
+				System.out.println("******** this MIDI song has " + song.tracks.size() + " instrument tracks *********");
+				System.out.println("and " + song.drum_tracks.size() + " drum tracks *********");
 			}
 			else {
-				System.out.println(midi.error_message); 
-			}			
-			
-			//loop loading and processing each midi track's data
-			
-			for (int i=0; i < midi.num_tracks; i++) { //includes drum_tracks				
-				if (midi.getTrackData(i)) {
-					System.out.println("getTrackData() track " + i + " OK");
-				} else {
-					System.out.println(midi.error_message);
-					midiOK = false;
-					return null;
-				}
-				
-				List<Integer> notes_ar = new ArrayList<Integer>(); //stores NoteOn/Off info as single values 
-				
-				if (midi.readMidi(song, notes_ar)) {
-					System.out.println("readMidi() track " + i + " OK");
-				} else {
-					System.out.println("LaunchActivity problem in readMidi()"); //TODO set up error message in Midi class
-					midiOK = false;
-					return null;
-				}
-				
-				if (midi.formatNotes(song, notes_ar)) {
-					System.out.println("formatNotes() track " + i + " OK");
-				} else {
-					System.out.println("LaunchActivity problem in formatNotes()");
-					midiOK = false;
-					return null;
-				}								
-			}
-						
-			System.out.println("******** this MIDI song has " + song.tracks.size() + " instrument tracks *********");
-			System.out.println("and " + song.drum_tracks.size() + " drum tracks *********");
-			
-			midiOK = true;
-			//midi = null; //explicit attempt to reclaim memory			
+				midiOK = false;
+				System.out.println("getMidiAsync() midi.convert() failed");
+			}				
 			
 			return null;
 		}
 		
 		@Override
-		   protected void onPostExecute(String result) {
+		protected void onPostExecute(String result) {
 		      super.onPostExecute(result);
 		      
 		      ProgressBar spinner = (ProgressBar) dialog.findViewById(R.id.midiProgSpnr);
@@ -1893,14 +1855,14 @@ public class SongMixer extends Activity {
 			      
 				  TextView tv1 = (TextView) dialog.findViewById(R.id.midiTV1);
 				  tv1.setText("There was a problem converting this MIDI file. The file may be corrupted." +
-				  		"Exiting process.");
+				  		" Exiting process.");
 				  //TODO need more to handle this?
 		      }						
 			  	      
 			OKBtn.setOnClickListener(new OnClickListener() {
 				@Override
 				public void onClick(View v) {
-					new songLoad().execute(song.fileName); //assumes songSave has completed
+					if (midiOK) new songLoad().execute(song.fileName); //assumes songSave has completed
 					dialog.dismiss();										
 				}    		
 	    	});	    	
